@@ -1,5 +1,6 @@
 import os
 from os.path import join
+import time
 from urllib import request
 from urllib.error import HTTPError
 
@@ -26,6 +27,7 @@ if __name__ == '__main__':
             urls.append(url)
 
     errors = []
+    time_start = time.time()
     for c, url in enumerate(urls):
         fname = url_to_fname(url, out_dir)
 
@@ -41,5 +43,6 @@ if __name__ == '__main__':
             print('Fail!')
             errors.append(url)
     print(f'Errors: {len(errors)}')
+    print(f'Time: {time.time() - time_start}')
     with open(join(PATH_DATA, 'celeb_id_raw_errors.txt'), 'w') as fout:
         fout.write('\n'.join(errors))

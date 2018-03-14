@@ -2,9 +2,11 @@ import argparse
 import cv2
 import json
 import os
+from os.path import join
 
 from src.data.utils import crop, clipped_normal, filename_to_group, \
     get_transformed_eye_points, rotate
+from src.utils.paths import PATH_DATA
 
 
 log_interval = 1000
@@ -12,13 +14,13 @@ log_interval = 1000
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Batch 2d-align faces')
-    parser.add_argument('output_size', type=int, default=256,
+    parser.add_argument('-s', '--output_size', type=int, default=256,
                         help='Final image size')
     args = parser.parse_args()
 
-    celeb_json = './data/celeb_params.json'
-    image_dir = './data/celeb_id_raw'
-    output_dir = './data/celeb_id_aligned'
+    celeb_json = join(PATH_DATA, 'celeb_params.json')
+    image_dir = join(PATH_DATA, 'celeb_id_raw')
+    output_dir = join(PATH_DATA, 'celeb_id_aligned')
 
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
@@ -31,10 +33,10 @@ if __name__ == '__main__':
     for c, (k, v) in enumerate(data.items()):
         if c % log_interval == 0:
             print('Processed {}/{}'.format(c, len(data)))
-            with open(os.path.join(output_dir, 'data.json'), 'w') as f:
+            with open(join(output_dir, 'data.json'), 'w') as f:
                 json.dump(out_data, f)
 
-        im_f = os.path.join(image_dir, k)
+        im_f = join(image_dir, k)
         if not os.path.exists(im_f):
             print('Could not find {}'.format(im_f))
             continue
@@ -91,7 +93,7 @@ if __name__ == '__main__':
 
         out_data[g].append(out_v)
 
-        cv2.imwrite(os.path.join(output_dir, k), im)
+        cv2.imwrite(join(output_dir, k), im)
 
-    with open(os.path.join(output_dir, 'data.json'), 'w') as f:
+    with open(join(output_dir, 'data.json'), 'w') as f:
         json.dump(out_data, f)
