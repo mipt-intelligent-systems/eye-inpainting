@@ -122,3 +122,17 @@ def convert_to_tensor_format(image, convert_color=True):
     # pixel conversion implicitly inverts the image
     image = invert_image(image)
     return move_channels_axis(image, position='first')
+
+def draw_rectangle(image, point, box, color):
+    x1 = point['x'] - box['w'] // 2
+    y1 = point['y'] - box['h'] // 2
+    x2 = x1 + box['w']
+    y2 = y1 + box['h']
+    image[:, y1:y2, x1:x2] = color
+    
+
+def make_input_image(image, reference, color):
+    if reference.get('eye_left') != None and reference.get('box_left') != None:
+        draw_rectangle(image, reference['eye_left'], reference['box_left'], color)
+    if reference.get('eye_right') != None and reference.get('box_right') != None:
+        draw_rectangle(image, reference['eye_right'], reference['box_right'], color)

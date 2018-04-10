@@ -4,7 +4,7 @@ import os
 from os.path import join
 from typing import Iterable, Generator
 
-from src.utils.image import convert_to_tensor_format, convert_to_opencv_format
+from src.utils.image import convert_to_tensor_format, convert_to_opencv_format, draw_rectangle, make_input_image
 
 
 def read_image(path: str) -> np.ndarray:
