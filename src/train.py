@@ -6,12 +6,10 @@ from src.network import Network
 from src.datasets import load
 
 IMAGE_SIZE = 128
-LOCAL_SIZE = 64
-HOLE_MIN = 24
-HOLE_MAX = 48
+LOCAL_SIZE = 32
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 16
-PRETRAIN_EPOCH = 100
+PRETRAIN_EPOCH = 1
 
 def train():
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
@@ -91,10 +89,10 @@ def train():
                 local_x_batch = []
                 local_completion_batch = []
                 for i in range(BATCH_SIZE):
-                    for point in points_batch[i].reshape(2, 4):
-                        x1, y1, x2, y2 = point[0], point[1], point[2], point[3]
-                        local_x_batch.append(x_batch[i][y1:y2, x1:x2, :])
-                        local_completion_batch.append(completion[i][y1:y2, x1:x2, :])
+                    point = points_batch[i].reshape(2, 4)[0]
+                    x1, y1, x2, y2 = point[0], point[1], point[0] + LOCAL_SIZE, point[1] + LOCAL_SIZE
+                    local_x_batch.append(x_batch[i][y1:y2, x1:x2, :])
+                    local_completion_batch.append(completion[i][y1:y2, x1:x2, :])
                 local_x_batch = np.array(local_x_batch)
                 local_completion_batch = np.array(local_completion_batch)
 
