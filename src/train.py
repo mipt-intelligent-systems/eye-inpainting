@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import cv2
 import tqdm
-from network import Network
+from src.network import Network
 import load
 
 IMAGE_SIZE = 128
