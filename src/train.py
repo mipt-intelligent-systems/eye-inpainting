@@ -3,7 +3,7 @@ import tensorflow as tf
 import cv2
 import tqdm
 from src.network import Network
-import load
+from src.datasets import load
 
 IMAGE_SIZE = 128
 LOCAL_SIZE = 64
@@ -37,24 +37,27 @@ def train():
         saver = tf.train.Saver()
         saver.restore(sess, './backup/latest')
 
-    x_train, x_test = load.load()
-    x_train = np.array([a / 127.5 - 1 for a in x_train])
-    x_test = np.array([a / 127.5 - 1 for a in x_test])
-
+    x_train, masks_train, points_train, x_test, masks_test, points_test = load()
+    x_train = np.transpose(x_train, (0, 2, 3, 1)) 
+    masks_train = np.transpose(masks_train, (0, 2, 3, 1)) 
+    x_test = np.transpose(x_test, (0, 2, 3, 1)) 
+    masks_test = np.transpose(masks_test, (0, 2, 3, 1)) 
+    
     step_num = int(len(x_train) / BATCH_SIZE)
 
     while True:
         sess.run(tf.assign(epoch, tf.add(epoch, 1)))
         print('epoch: {}'.format(sess.run(epoch)))
 
-        np.random.shuffle(x_train)
+        # np.random.shuffle(x_train)
 
         # Completion 
         if sess.run(epoch) <= PRETRAIN_EPOCH:
             g_loss_value = 0
             for i in tqdm.tqdm(range(step_num)):
                 x_batch = x_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-                points_batch, mask_batch = get_points()
+                
+                mask_batch, points_batch = masks_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE], points_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
 
                 _, g_loss = sess.run([g_train_op, model.g_loss], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
                 g_loss_value += g_loss
@@ -80,7 +83,7 @@ def train():
             d_loss_value = 0
             for i in tqdm.tqdm(range(step_num)):
                 x_batch = x_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-                points_batch, mask_batch = get_points()
+                mask_batch, points_batch = masks_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE], points_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
 
                 _, g_loss, completion = sess.run([g_train_op, model.g_loss, model.completion], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
                 g_loss_value += g_loss
@@ -88,9 +91,10 @@ def train():
                 local_x_batch = []
                 local_completion_batch = []
                 for i in range(BATCH_SIZE):
-                    x1, y1, x2, y2 = points_batch[i]
-                    local_x_batch.append(x_batch[i][y1:y2, x1:x2, :])
-                    local_completion_batch.append(completion[i][y1:y2, x1:x2, :])
+                    for point in points_batch[i].reshape(2, 4):
+                        x1, y1, x2, y2 = point[0], point[1], point[2], point[3]
+                        local_x_batch.append(x_batch[i][y1:y2, x1:x2, :])
+                        local_completion_batch.append(completion[i][y1:y2, x1:x2, :])
                 local_x_batch = np.array(local_x_batch)
                 local_completion_batch = np.array(local_completion_batch)
 
@@ -110,28 +114,6 @@ def train():
 
             saver = tf.train.Saver()
             saver.save(sess, './backup/latest', write_meta_graph=False)
-
-
-def get_points():
-    points = []
-    mask = []
-    for i in range(BATCH_SIZE):
-        x1, y1 = np.random.randint(0, IMAGE_SIZE - LOCAL_SIZE + 1, 2)
-        x2, y2 = np.array([x1, y1]) + LOCAL_SIZE
-        points.append([x1, y1, x2, y2])
-
-        w, h = np.random.randint(HOLE_MIN, HOLE_MAX + 1, 2)
-        p1 = x1 + np.random.randint(0, LOCAL_SIZE - w)
-        q1 = y1 + np.random.randint(0, LOCAL_SIZE - h)
-        p2 = p1 + w
-        q2 = q1 + h
-        
-        m = np.zeros((IMAGE_SIZE, IMAGE_SIZE, 1), dtype=np.uint8)
-        m[q1:q2 + 1, p1:p2 + 1] = 1
-        mask.append(m)
-
-
-    return np.array(points), np.array(mask)
 
 
 if __name__ == '__main__':
