@@ -80,6 +80,8 @@ def train():
             g_loss_value = 0
             d_loss_value = 0
             for i in tqdm.tqdm(range(step_num)):
+                if step_num < 55:
+                    continue
                 x_batch = x_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
                 mask_batch, points_batch = masks_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE], points_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
 
@@ -90,7 +92,15 @@ def train():
                 local_completion_batch = []
                 for i in range(BATCH_SIZE):
                     point = points_batch[i].reshape(2, 4)[0]
+                    point[0] = max(0, point[0])
+                    point[1] = max(0, point[1])
                     x1, y1, x2, y2 = point[0], point[1], point[0] + LOCAL_SIZE, point[1] + LOCAL_SIZE
+                    if x2 > IMAGE_SIZE:
+                        x2 = IMAGE_SIZE
+                        x1 = x2 - LOCAL_SIZE
+                    if y2 > IMAGE_SIZE:
+                        y2 = IMAGE_SIZE
+                        y1 = y2 - LOCAL_SIZE
                     local_x_batch.append(x_batch[i][y1:y2, x1:x2, :])
                     local_completion_batch.append(completion[i][y1:y2, x1:x2, :])
                 local_x_batch = np.array(local_x_batch)

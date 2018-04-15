@@ -8,17 +8,16 @@ import sys
 sys.path.append('..')
 from src.network import Network
 from src.utils.paths import PATH_DATA, PATH_WEIGHTS, PATH_OUTPUT
+from src.datasets import load
 from os.path import join
 
 IMAGE_SIZE = 128
-LOCAL_SIZE = 64
+LOCAL_SIZE = 32
 HOLE_MIN = 24
 HOLE_MAX = 48
 BATCH_SIZE = 16
 PRETRAIN_EPOCH = 100
 
-masks_npy = join(PATH_DATA, 'masks.npy')
-X_test_npy = join(PATH_DATA, 'images.npy')
 weights_path = join(PATH_WEIGHTS, 'latest')
 
 def test():
@@ -37,8 +36,8 @@ def test():
     saver = tf.train.Saver()
     saver.restore(sess, weights_path)
 
-    X_test = np.load(X_test_npy)
-    masks = np.load(masks_npy)
+    _, _, _, X_test, masks, _ = load()
+    
     print(masks.shape)
     print(masks.dtype)
     X_test = X_test * (-1)
