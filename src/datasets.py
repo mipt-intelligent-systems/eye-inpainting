@@ -10,33 +10,39 @@ def downscale256to128(image):
     img = image[:, ::2, ::2]
     return img
 
-def prepare_one_dataset(start, size, name, reference_by_path, path_aligned):
-    images = []
-    masks = []
-    points = []
-    filenames = list(reference_by_path.keys())
-    for i, filename in tqdm(enumerate(filenames[start:start + size])):
-        path = join(path_aligned, filename)
-        y = read_image(path)
-        x = np.zeros((1, 256, 256), dtype=np.uint8)
-        make_input_image(x, reference_by_path[filename], 1)
-        rects = get_rects(reference_by_path[filename])
-        if rects is None:
-            continue
-        lpoints = np.array(rects).flatten()
-        y = downscale256to128(y)
-        x = downscale256to128(x)
-        images.append(y.copy())
-        masks.append(x.copy())
-        points.append(lpoints.copy() // 2)
-    images = np.array(images)
-    masks = np.array(masks)
-    points = np.array(points)
-    np.save(join(PROCESSED_NPY_DATA, 'masks_%s.npy' % name ), masks)
-    np.save(join(PROCESSED_NPY_DATA, 'points_%s.npy' % name ), points)
-    np.save(join(PROCESSED_NPY_DATA, 'x_%s.npy') % name, images)
+def get_batch_generator(start, total_size, reference_by_path, path_aligned):
+    def batch_generator(batch_size):
+        images = []
+        masks = []
+        points = []
+        filenames = list(reference_by_path.keys())
+        for i, filename in enumerate(filenames[start:start + total_size]):
+            path = join(path_aligned, filename)
+            y = read_image(path)
+            x = np.zeros((1, 256, 256), dtype=np.uint8)
+            make_input_image(x, reference_by_path[filename], 1)
+            rects = get_rects(reference_by_path[filename])
+            if rects is None:
+                continue
+            lpoints = np.array(rects).flatten()
+            y = downscale256to128(y)
+            x = downscale256to128(x)
+            images.append(y.copy())
+            masks.append(x.copy())
+            points.append(lpoints.copy() // 2)
+            if len(images) == batch_size:
+                images = np.array(images)
+                masks = np.array(masks)
+                points = np.array(points)
+                images = np.transpose(images, (0, 2, 3, 1)) 
+                masks = np.transpose(masks, (0, 2, 3, 1)) 
+                yield images, masks, points
+                images = []
+                masks = []
+                points = []
+    return batch_generator
 
-def prepare_full_dataset(path_aligned, train_size, test_size):
+def get_full_dataset(path_aligned, train_ratio):
     reference = json.loads(open(join(path_aligned, 'data.json'), 'r').read())
     # key - file name, value - map with eyes description
     reference_by_path = dict()
@@ -44,21 +50,8 @@ def prepare_full_dataset(path_aligned, train_size, test_size):
         for image_reference in reference[person]:
             reference_by_path[image_reference['filename']] = image_reference
     filenames = list(reference_by_path.keys())
-    prepare_one_dataset(0, train_size, 'train', reference_by_path, path_aligned)
-    prepare_one_dataset(train_size, test_size, 'test', reference_by_path, path_aligned)
-
-def load():
-    x_train = np.load(os.path.join(PROCESSED_NPY_DATA, 'x_train.npy'))
-    masks_train = np.load(os.path.join(PROCESSED_NPY_DATA, 'masks_train.npy'))
-    points_train = np.load(os.path.join(PROCESSED_NPY_DATA, 'points_train.npy'))
-    x_test = np.load(os.path.join(PROCESSED_NPY_DATA, 'x_test.npy'))
-    masks_test = np.load(os.path.join(PROCESSED_NPY_DATA, 'masks_test.npy'))
-    points_test = np.load(os.path.join(PROCESSED_NPY_DATA, 'points_train.npy'))
-    return x_train, masks_train, points_train, x_test, masks_test, points_test
-
-
-if __name__ == '__main__':
-    x_train, masks_train, x_test, masks_test = load()
-    print(x_train.shape)
-    print(x_test.shape)
+    train_size = int(train_ratio * len(filenames))
+    train_generator = get_batch_generator(0, train_size, reference_by_path, path_aligned)
+    test_generator = get_batch_generator(train_size, len(filenames) - train_size, reference_by_path, path_aligned)
+    return train_generator, test_generator, train_size
 

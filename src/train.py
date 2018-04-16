@@ -3,13 +3,17 @@ import tensorflow as tf
 import cv2
 import tqdm
 from src.network import Network
-from src.datasets import load
+from src.datasets import get_full_dataset
+from src.utils.paths import PATH_DATA
+from os.path import join
 
 IMAGE_SIZE = 128
 LOCAL_SIZE = 32
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 16
-PRETRAIN_EPOCH = 1
+PRETRAIN_EPOCH = 10
+
+PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
 
 def train():
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
@@ -35,13 +39,9 @@ def train():
         saver = tf.train.Saver()
         saver.restore(sess, './backup/latest')
 
-    x_train, masks_train, points_train, x_test, masks_test, points_test = load()
-    x_train = np.transpose(x_train, (0, 2, 3, 1)) 
-    masks_train = np.transpose(masks_train, (0, 2, 3, 1)) 
-    x_test = np.transpose(x_test, (0, 2, 3, 1)) 
-    masks_test = np.transpose(masks_test, (0, 2, 3, 1)) 
+    train_generator, test_generator, train_size = get_full_dataset(PATH_CELEB_ALIGN_IMAGES, 0.9)
     
-    step_num = int(len(x_train) / BATCH_SIZE)
+    step_num = int(train_size / BATCH_SIZE)
 
     while True:
         sess.run(tf.assign(epoch, tf.add(epoch, 1)))
@@ -52,20 +52,17 @@ def train():
         # Completion 
         if sess.run(epoch) <= PRETRAIN_EPOCH:
             g_loss_value = 0
-            for i in tqdm.tqdm(range(step_num)):
-                x_batch = x_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-                
-                mask_batch, points_batch = masks_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE], points_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-
+            for i, (x_batch, mask_batch, points_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+                if i == step_num:
+                    break
                 _, g_loss = sess.run([g_train_op, model.g_loss], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
                 g_loss_value += g_loss
 
             print('Completion loss: {}'.format(g_loss_value))
 
-            np.random.shuffle(x_test) 
-            x_batch = x_test[:BATCH_SIZE]
+            x_batch, mask_batch, _ = next(test_generator(BATCH_SIZE))
             completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})
-            sample = np.array((completion[0] + 1) * 127.5, dtype=np.uint8)
+            sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
             cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
 
 
@@ -73,18 +70,13 @@ def train():
             saver.save(sess, './backup/latest', write_meta_graph=False)
             if sess.run(epoch) == PRETRAIN_EPOCH:
                 saver.save(sess, './backup/pretrained', write_meta_graph=False)
-
-
         # Discrimitation
         else:
             g_loss_value = 0
             d_loss_value = 0
-            for i in tqdm.tqdm(range(step_num)):
-                if step_num < 55:
-                    continue
-                x_batch = x_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-                mask_batch, points_batch = masks_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE], points_train[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-
+            for i, (x_batch, mask_batch, points_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+                if i == step_num:
+                    break
                 _, g_loss, completion = sess.run([g_train_op, model.g_loss, model.completion], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
                 g_loss_value += g_loss
 
@@ -114,10 +106,9 @@ def train():
             print('Completion loss: {}'.format(g_loss_value))
             print('Discriminator loss: {}'.format(d_loss_value))
 
-            np.random.shuffle(x_test) 
-            x_batch = x_test[:BATCH_SIZE]
+            x_batch, mask_batch, _ = next(test_generator(BATCH_SIZE))
             completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})
-            sample = np.array((completion[0] + 1) * 127.5, dtype=np.uint8)
+            sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
             cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
 
             saver = tf.train.Saver()

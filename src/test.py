@@ -8,7 +8,7 @@ import sys
 sys.path.append('..')
 from src.network import Network
 from src.utils.paths import PATH_DATA, PATH_WEIGHTS, PATH_OUTPUT
-from src.datasets import load
+from src.datasets import get_full_dataset
 from os.path import join
 
 IMAGE_SIZE = 128
@@ -17,6 +17,8 @@ HOLE_MIN = 24
 HOLE_MAX = 48
 BATCH_SIZE = 16
 PRETRAIN_EPOCH = 100
+
+PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
 
 weights_path = join(PATH_WEIGHTS, 'latest')
 
@@ -36,30 +38,19 @@ def test():
     saver = tf.train.Saver()
     saver.restore(sess, weights_path)
 
-    _, _, _, X_test, masks, _ = load()
-    
-    print(masks.shape)
-    print(masks.dtype)
-    X_test = X_test * (-1)
-
-    step_num = int(len(X_test) / BATCH_SIZE)
+    _, test_generator, _ = get_full_dataset(PATH_CELEB_ALIGN_IMAGES, 0.9)
 
     cnt = 0
-    for i in tqdm.tqdm(range(step_num)):
-        X_batch = X_test[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-        # print(X_batch.shape)
-        X_batch = np.transpose(X_batch, (0, 2,3,1))  
-        # print(X_batch.shape)
-        mask_batch = masks[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-        mask_batch = np.transpose(mask_batch, (0, 2,3,1))  
+    for i, (X_batch, mask_batch, _) in tqdm.tqdm(enumerate(test_generator(BATCH_SIZE))):
+        
         completion = sess.run(model.completion, feed_dict={x: X_batch, mask: mask_batch, is_training: False})
         for i in range(BATCH_SIZE):
             cnt += 1
             raw = X_batch[i]
-            raw = np.array((raw + 1) * 127.5, dtype=np.uint8)
+            raw = np.array((-raw + 1) * 127.5, dtype=np.uint8)
             masked = raw * (1 - mask_batch[i]) + np.ones_like(raw) * mask_batch[i] * 255
             img = completion[i]
-            img = np.array((img + 1) * 127.5, dtype=np.uint8)
+            img = np.array((-img + 1) * 127.5, dtype=np.uint8)
             dst = join(PATH_OUTPUT, '{}.jpg'.format("{0:06d}".format(cnt)))
             output_image([['Input', masked], ['Output', img], ['Ground Truth', raw]], dst)
             
