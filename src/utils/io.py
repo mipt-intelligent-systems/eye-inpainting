@@ -4,7 +4,7 @@ import os
 from os.path import join
 from typing import Iterable, Generator
 
-from src.utils.image import convert_to_tensor_format, convert_to_opencv_format
+from src.utils.image import convert_to_tensor_format, convert_to_opencv_format, draw_rectangle, make_input_image, get_rects
 
 
 def read_image(path: str) -> np.ndarray:
@@ -16,7 +16,7 @@ def read_image(path: str) -> np.ndarray:
     """
     image = cv2.imread(path, cv2.IMREAD_COLOR)
     if image is None:
-        raise IOError(f'Cannot read image: {path}')
+        raise IOError('Cannot read image: {path}')
     return convert_to_tensor_format(image)
 
 
