@@ -15,7 +15,7 @@ IMAGE_SIZE = 128
 LOCAL_SIZE = 32
 HOLE_MIN = 24
 HOLE_MAX = 48
-BATCH_SIZE = 16
+BATCH_SIZE = 128
 PRETRAIN_EPOCH = 100
 
 PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
@@ -24,13 +24,14 @@ weights_path = join(PATH_WEIGHTS, 'latest')
 
 def test():
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
+    ref = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     mask = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 1])
     local_x = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     global_completion = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     local_completion = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     is_training = tf.placeholder(tf.bool, [])
 
-    model = Network(x, mask, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
+    model = Network(x, mask, ref, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
     sess = tf.Session()
     init_op = tf.global_variables_initializer()
     sess.run(init_op)
@@ -41,18 +42,19 @@ def test():
     _, test_generator, _ = get_full_dataset(PATH_CELEB_ALIGN_IMAGES, 0.9)
 
     cnt = 0
-    for i, (X_batch, mask_batch, _) in tqdm.tqdm(enumerate(test_generator(BATCH_SIZE))):
-        
-        completion = sess.run(model.completion, feed_dict={x: X_batch, mask: mask_batch, is_training: False})
+    for i, (X_batch, mask_batch, _, ref_batch) in tqdm.tqdm(enumerate(test_generator(BATCH_SIZE))):
+        completion = sess.run(model.completion, feed_dict={x: X_batch, mask: mask_batch, ref: ref_batch, is_training: False})
         for i in range(BATCH_SIZE):
             cnt += 1
             raw = X_batch[i]
+            ref = ref_batch[i]
+            ref = np.array((-ref + 1) * 127.5, dtype=np.uint8)
             raw = np.array((-raw + 1) * 127.5, dtype=np.uint8)
             masked = raw * (1 - mask_batch[i]) + np.ones_like(raw) * mask_batch[i] * 255
             img = completion[i]
             img = np.array((-img + 1) * 127.5, dtype=np.uint8)
             dst = join(PATH_OUTPUT, '{}.jpg'.format("{0:06d}".format(cnt)))
-            output_image([['Input', masked], ['Output', img], ['Ground Truth', raw]], dst)
+            output_image([['Input', masked], ['Reference', ref], ['Output', img], ['Ground Truth', raw]], dst)
             
 
 def get_mask(input_images):
@@ -74,7 +76,7 @@ def output_image(images, dst):
     fig = plt.figure()
     for i, image in enumerate(images):
         text, img = image
-        fig.add_subplot(1, 3, i + 1)
+        fig.add_subplot(1, 4, i + 1)
         plt.imshow(img)
         plt.tick_params(labelbottom='off')
         plt.tick_params(labelleft='off')
