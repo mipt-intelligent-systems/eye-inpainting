@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import cv2
-import tqdm
+from tqdm import tqdm_notebook as tqdm
 from src.network import Network
 from src.datasets import get_full_dataset
 from src.utils.paths import PATH_DATA
@@ -17,13 +17,14 @@ PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
 
 def train():
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
+    ref = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     mask = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 1])
     local_x = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     global_completion = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     local_completion = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     is_training = tf.placeholder(tf.bool, [])
 
-    model = Network(x, mask, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
+    model = Network(x, mask, ref, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
     sess = tf.Session()
     global_step = tf.Variable(0, name='global_step', trainable=False)
     epoch = tf.Variable(0, name='epoch', trainable=False)
@@ -52,16 +53,16 @@ def train():
         # Completion 
         if sess.run(epoch) <= PRETRAIN_EPOCH:
             g_loss_value = 0
-            for i, (x_batch, mask_batch, points_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+            for i, (x_batch, mask_batch, points_batch, ref_batch) in tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
                 if i == step_num:
                     break
-                _, g_loss = sess.run([g_train_op, model.g_loss], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
+                _, g_loss = sess.run([g_train_op, model.g_loss], feed_dict={x: x_batch, mask: mask_batch, ref: ref_batch, is_training: True})
                 g_loss_value += g_loss
 
             print('Completion loss: {}'.format(g_loss_value))
 
-            x_batch, mask_batch, _ = next(test_generator(BATCH_SIZE))
-            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})
+            x_batch, mask_batch, _, ref_batch = next(test_generator(BATCH_SIZE))
+            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, ref: ref_batch, is_training: False})
             sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
             cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
 
@@ -74,10 +75,10 @@ def train():
         else:
             g_loss_value = 0
             d_loss_value = 0
-            for i, (x_batch, mask_batch, points_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+            for i, (x_batch, mask_batch, points_batch, ref_batch) in tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
                 if i == step_num:
                     break
-                _, g_loss, completion = sess.run([g_train_op, model.g_loss, model.completion], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
+                _, g_loss, completion = sess.run([g_train_op, model.g_loss, model.completion], feed_dict={x: x_batch, mask: mask_batch, ref: ref_batch, is_training: True})
                 g_loss_value += g_loss
 
                 local_x_batch = []
@@ -100,14 +101,14 @@ def train():
 
                 _, d_loss = sess.run(
                     [d_train_op, model.d_loss], 
-                    feed_dict={x: x_batch, mask: mask_batch, local_x: local_x_batch, global_completion: completion, local_completion: local_completion_batch, is_training: True})
+                    feed_dict={x: x_batch, mask: mask_batch, ref: ref_batch, local_x: local_x_batch, global_completion: completion, local_completion: local_completion_batch, is_training: True})
                 d_loss_value += d_loss
 
             print('Completion loss: {}'.format(g_loss_value))
             print('Discriminator loss: {}'.format(d_loss_value))
 
-            x_batch, mask_batch, _ = next(test_generator(BATCH_SIZE))
-            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})
+            x_batch, mask_batch, _, ref_batch = next(test_generator(BATCH_SIZE))
+            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, ref: ref_batch, is_training: False})
             sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
             cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
 

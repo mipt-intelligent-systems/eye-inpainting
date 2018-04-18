@@ -1,9 +1,9 @@
 from src.layer import *
 
 class Network:
-    def __init__(self, x, mask, local_x, global_completion, local_completion, is_training, batch_size):
+    def __init__(self, x, mask, ref, local_x, global_completion, local_completion, is_training, batch_size):
         self.batch_size = batch_size
-        self.imitation = self.generator(x * (1 - mask), is_training)
+        self.imitation = self.generator(x * (1 - mask), ref, is_training)
         self.completion = self.imitation * mask + x * (1 - mask)
         self.real = self.discriminator(x, local_x, reuse=False)
         self.fake = self.discriminator(global_completion, local_completion, reuse=True)
@@ -13,9 +13,10 @@ class Network:
         self.d_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
 
 
-    def generator(self, x, is_training):
+    def generator(self, x, ref, is_training):
         with tf.variable_scope('generator'):
             with tf.variable_scope('conv1'):
+                #x = tf.concat([x, ref], -1)
                 x = conv_layer(x, [5, 5, 3, 64], 1)
                 x = batch_normalize(x, is_training)
                 x = tf.nn.relu(x)
