@@ -19,7 +19,7 @@ def get_reference(filename, path_aligned, person_to_files, reference_by_path, se
     person = filename.rsplit('-', 1)[0]
     person_files = person_to_files[person]
     if len(person_files) == 1:
-        return None
+        return None, None
     j = 0
     while person_files[j] == filename:
         j += 1
@@ -30,19 +30,21 @@ def get_reference(filename, path_aligned, person_to_files, reference_by_path, se
     y = np.transpose(y, (1, 2, 0))
     raw_rects = get_rects(reference_by_path[reference_file])
     if raw_rects is None:
-        return None
+        return None, None
     reference_points = np.array(raw_rects).flatten() // 2
     reference_features = sess.run(extract_features(y, reference_points))
-    return reference_features
+    return reference_features, y
 
 
-def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_to_files, dir, prefix):
+def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_to_files, dir, prefix, save_reference_images=False):
     sess = tf.Session()
     datasetFile = tables.open_file(join(dir, prefix + '-dataset.h5'), mode='w')
     imagesArray = datasetFile.create_earray(datasetFile.root, 'images', tables.Float32Atom(), (0, 128, 128, 3))
     masksArray = datasetFile.create_earray(datasetFile.root, 'masks', tables.UInt8Atom(), (0, 128, 128, 1))
     pointsArray = datasetFile.create_earray(datasetFile.root, 'points', tables.Int8Atom(), (0, 8))
     referencesArray = datasetFile.create_earray(datasetFile.root, 'references', tables.Float32Atom(), (0, 256))
+    referenceImagesArray = datasetFile.create_earray(datasetFile.root, 'reference_images', tables.Float32Atom(), (0, 128, 128, 3))
+
     images = []
     masks = []
     points = []
@@ -55,7 +57,7 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
         masked = np.zeros((1, 256, 256), dtype=np.uint8)
         make_input_image(masked, reference_by_path[filename], 1)
         rects = get_rects(reference_by_path[filename])
-        reference = get_reference(filename, path_aligned, person_to_files, reference_by_path, sess)
+        reference, reference_image = get_reference(filename, path_aligned, person_to_files, reference_by_path, sess)
         if rects is None or reference is None:
             continue
         lpoints = np.array(rects).flatten()
@@ -68,38 +70,60 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
         pointsArray.append(np.expand_dims(lpoints.copy() // 2, 0))
         reference = np.array(reference)
         referencesArray.append(np.expand_dims(reference, 0))
-        #i += 1
-        #if i > 100:
-        #    break
+        if save_reference_images:
+            referenceImagesArray.append(np.expand_dims(reference_image, 0))
     datasetFile.close()
 
 
-def get_batch_generator(filename):
+def get_batch_generator(filename, load_reference_images=False):
     def batch_generator(batch_size):
         datasetFile = tables.open_file(filename, mode='r')
         imagesNode = datasetFile.get_node('/images')
         masksNode = datasetFile.get_node('/masks')
         pointsNode = datasetFile.get_node('/points')
         referenceNode = datasetFile.get_node('/references')
+        referenceImagesNode = None
+        if load_reference_images:
+            referenceImagesNode = datasetFile.get_node('/reference_images')
         images = []
         masks = []
         points = []
         references = []
-        for image, mask, point, reference in zip(imagesNode.iterrows(), masksNode.iterrows(), pointsNode.iterrows(), referenceNode.iterrows()):
-            images.append(image)
-            masks.append(mask)
-            points.append(point)
-            references.append(reference)
-            if len(images) == batch_size:
-                images = np.array(images)
-                masks = np.array(masks)
-                points = np.array(points)
-                references = np.array(references)
-                yield images, masks, points, references
-                images = []
-                masks = []
-                points = []
-                references = []
+        reference_images = []
+        if load_reference_images:
+            for image, mask, point, reference, referenceImage in zip(imagesNode.iterrows(), masksNode.iterrows(), pointsNode.iterrows(), referenceNode.iterrows(), referenceImagesNode.iterrows()):
+                images.append(image)
+                masks.append(mask)
+                points.append(point)
+                references.append(reference)
+                reference_images.append(referenceImage)
+                if len(images) == batch_size:
+                    images = np.array(images)
+                    masks = np.array(masks)
+                    points = np.array(points)
+                    references = np.array(references)
+                    yield images, masks, points, references, reference_images
+                    images = []
+                    masks = []
+                    points = []
+                    references = []
+                    reference_images = []
+        else:
+            for image, mask, point, reference in zip(imagesNode.iterrows(), masksNode.iterrows(), pointsNode.iterrows(), referenceNode.iterrows()):
+                images.append(image)
+                masks.append(mask)
+                points.append(point)
+                references.append(reference)
+                if len(images) == batch_size:
+                    images = np.array(images)
+                    masks = np.array(masks)
+                    points = np.array(points)
+                    references = np.array(references)
+                    yield images, masks, points, references
+                    images = []
+                    masks = []
+                    points = []
+                    references = []
     return batch_generator
 
 
@@ -107,6 +131,9 @@ def get_full_dataset(path_aligned):
     train_generator = get_batch_generator(join('./data/prepared', 'train-dataset.h5'))
     test_generator = get_batch_generator(join('./data/prepared', 'test-dataset.h5'))
     return train_generator, test_generator
+
+def get_final_test_dataset():
+    return get_batch_generator(join('./data/prepared', 'test-dataset.h5'), True)
 
 
 def prepare_full_dataset(path_aligned, train_ratio):
@@ -124,5 +151,5 @@ def prepare_full_dataset(path_aligned, train_ratio):
     filenames = list(reference_by_path.keys())
     train_size = int(train_ratio * len(filenames))
     prepare_dataset(0, train_size, reference_by_path, path_aligned, person_to_files, './data/prepared', 'train')
-    prepare_dataset(train_size, len(filenames) - train_size, reference_by_path, path_aligned, person_to_files, './data/prepared', 'test')
+    prepare_dataset(train_size, len(filenames) - train_size, reference_by_path, path_aligned, person_to_files, './data/prepared', 'test', True)
     return train_size
