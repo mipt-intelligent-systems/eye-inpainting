@@ -15,7 +15,8 @@ PRETRAIN_EPOCH = 10
 
 PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
 
-def train(TRAIN_SIZE = 97453 ):
+
+def train(train_size=97453):
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     mask = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 1])
     local_x = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
@@ -41,7 +42,7 @@ def train(TRAIN_SIZE = 97453 ):
 
     train_generator, test_generator = get_full_dataset(PATH_CELEB_ALIGN_IMAGES)
     
-    step_num = int(TRAIN_SIZE / BATCH_SIZE)
+    step_num = int(train_size / BATCH_SIZE)
 
     while True:
         sess.run(tf.assign(epoch, tf.add(epoch, 1)))
@@ -64,7 +65,6 @@ def train(TRAIN_SIZE = 97453 ):
             completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})
             sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
             cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
-
 
             saver = tf.train.Saver()
             saver.save(sess, './backup/latest', write_meta_graph=False)
@@ -117,4 +117,3 @@ def train(TRAIN_SIZE = 97453 ):
 
 if __name__ == '__main__':
     train()
-    

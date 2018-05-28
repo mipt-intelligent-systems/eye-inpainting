@@ -96,7 +96,6 @@ class Network:
 
         return x
 
-
     def discriminator(self, global_x, local_x, reuse):
         def global_discriminator(x):
             is_training = tf.constant(True)
@@ -159,11 +158,9 @@ class Network:
                
         return output
 
-
     def calc_g_loss(self, x, completion):
         loss = tf.nn.l2_loss(x - completion)
         return tf.reduce_mean(loss)
-
 
     def calc_d_loss(self, real, fake):
         alpha = 4e-4

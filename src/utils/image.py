@@ -123,12 +123,14 @@ def convert_to_tensor_format(image, convert_color=True):
     image = invert_image(image)
     return move_channels_axis(image, position='first')
 
+
 def get_rect(point, box):
     x1 = point['x'] - box['w'] // 2
     y1 = point['y'] - box['h'] // 2
     x2 = x1 + box['w']
     y2 = y1 + box['h']
     return x1, y1, x2, y2
+
 
 def draw_rectangle(image, point, box, color):
     x1, y1, x2, y2 = get_rect(point, box)
@@ -141,9 +143,10 @@ def make_input_image(image, reference, color):
     if reference.get('eye_right') != None and reference.get('box_right') != None:
         draw_rectangle(image, reference['eye_right'], reference['box_right'], color)
 
+
 def get_rects(reference):
     if reference.get('eye_left') is None or reference.get('box_left') is None or \
-        reference.get('eye_right') is None or reference.get('box_right') is None:
+       reference.get('eye_right') is None or reference.get('box_right') is None:
         return None
     else:
         return get_rect(reference['eye_left'], reference['box_left']), get_rect(reference['eye_right'], reference['box_right'])

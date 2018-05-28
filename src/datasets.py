@@ -9,9 +9,11 @@ import tables
 from src.network import extract_features
 import tensorflow as tf
 
+
 def downscale256to128(image):
     img = image[:, ::2, ::2]
     return img
+
 
 def get_reference(filename, path_aligned, person_to_files, reference_by_path, sess):
     person = filename.rsplit('-', 1)[0]
@@ -32,6 +34,7 @@ def get_reference(filename, path_aligned, person_to_files, reference_by_path, se
     reference_points = np.array(raw_rects).flatten() // 2
     reference_features = sess.run(extract_features(y, reference_points))
     return reference_features
+
 
 def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_to_files, dir, prefix):
     sess = tf.Session()
@@ -70,6 +73,7 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
             break
     datasetFile.close()
 
+
 def get_batch_generator(filename):
     def batch_generator(batch_size):
         datasetFile = tables.open_file(filename, mode='r')
@@ -98,10 +102,12 @@ def get_batch_generator(filename):
                 references = []
     return batch_generator
 
+
 def get_full_dataset(path_aligned):
     train_generator = get_batch_generator(join('./data/prepared', 'train-dataset.h5'))
     test_generator = get_batch_generator(join('./data/prepared', 'test-dataset.h5'))
     return train_generator, test_generator
+
 
 def prepare_full_dataset(path_aligned, train_ratio):
     reference = json.loads(open(join(path_aligned, 'data.json'), 'r').read())
