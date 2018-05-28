@@ -17,12 +17,12 @@ def extract_features_from_batch(image_batch, points_batch):
 
 
 class Network:
-    def __init__(self, x, mask, reference, points, local_x, global_completion, local_completion, is_training, batch_size):
+    def __init__(self, x, mask, reference, points, local_x, local_x_right, global_completion, local_completion, local_completion_right, is_training, batch_size):
         self.batch_size = batch_size
         self.imitation = self.generator(x * (1 - mask), is_training)
         self.completion = self.imitation * mask + x * (1 - mask)
-        self.real = self.discriminator(x, local_x, reuse=False)
-        self.fake = self.discriminator(global_completion, local_completion, reuse=True)
+        self.real = self.discriminator(x, local_x, local_x_right, reuse=False)
+        self.fake = self.discriminator(global_completion, local_completion, local_completion_right, reuse=True)
         self.g_loss = self.calc_g_loss(x, self.completion)
         self.d_loss = self.calc_d_loss(self.real, self.fake)
         self.reference_loss = self.calc_reference_loss(reference, self.completion, points)
@@ -101,7 +101,7 @@ class Network:
 
         return x
 
-    def discriminator(self, global_x, local_x, reuse):
+    def discriminator(self, global_x, local_x, local_x_right, reuse):
         def global_discriminator(x):
             is_training = tf.constant(True)
             with tf.variable_scope('global'):
@@ -154,11 +154,37 @@ class Network:
                     x = full_connection_layer(x, 1024)
             return x
 
+        def local_dicriminator_right(x):
+            is_training = tf.constant(True)
+            with tf.variable_scope('local_right'):
+                with tf.variable_scope('conv1'):
+                    x = conv_layer(x, [5, 5, 3, 64], 2)
+                    x = batch_normalize(x, is_training)
+                    x = tf.nn.relu(x)
+                with tf.variable_scope('conv2'):
+                    x = conv_layer(x, [5, 5, 64, 128], 2)
+                    x = batch_normalize(x, is_training)
+                    x = tf.nn.relu(x)
+                with tf.variable_scope('conv3'):
+                    x = conv_layer(x, [5, 5, 128, 256], 2)
+                    x = batch_normalize(x, is_training)
+                    x = tf.nn.relu(x)
+                with tf.variable_scope('conv4'):
+                    x = conv_layer(x, [5, 5, 256, 512], 2)
+                    x = batch_normalize(x, is_training)
+                    x = tf.nn.relu(x)
+                with tf.variable_scope('fc'):
+                    x = flatten_layer(x)
+                    x = full_connection_layer(x, 1024)
+            return x
+            
+
         with tf.variable_scope('discriminator', reuse=reuse):
             global_output = global_discriminator(global_x)
             local_output = local_discriminator(local_x)
+            local_right_output = local_dicriminator_right(local_x_right)
             with tf.variable_scope('concatenation'):
-                output = tf.concat((global_output, local_output), 1)
+                output = tf.concat((global_output, local_output, local_right_output), 1)
                 output = full_connection_layer(output, 1)
                
         return output

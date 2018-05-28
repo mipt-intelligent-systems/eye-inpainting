@@ -15,6 +15,17 @@ PRETRAIN_EPOCH = 10
 
 PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
 
+def point_to_coords(point):
+    point[0] = max(0, point[0])
+    point[1] = max(0, point[1])
+    x1, y1, x2, y2 = point[0], point[1], point[0] + LOCAL_SIZE, point[1] + LOCAL_SIZE
+    if x2 > IMAGE_SIZE:
+        x2 = IMAGE_SIZE
+        x1 = x2 - LOCAL_SIZE
+    if y2 > IMAGE_SIZE:
+        y2 = IMAGE_SIZE
+        y1 = y2 - LOCAL_SIZE
+    return x1, y1, x2, y2
 
 def train(train_size):
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
@@ -22,11 +33,13 @@ def train(train_size):
     reference = tf.placeholder(tf.float32, [BATCH_SIZE, 256])
     points = tf.placeholder(tf.int32, [BATCH_SIZE, 8])
     local_x = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
+    local_x_right = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     global_completion = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     local_completion = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
+    local_completion_right = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     is_training = tf.placeholder(tf.bool, [])
 
-    model = Network(x, mask, reference, points, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
+    model = Network(x, mask, reference, points, local_x, local_x_right, global_completion, local_completion, local_completion_right, is_training, batch_size=BATCH_SIZE)
     sess = tf.Session()
     global_step = tf.Variable(0, name='global_step', trainable=False)
     epoch = tf.Variable(0, name='epoch', trainable=False)
@@ -66,8 +79,8 @@ def train(train_size):
             print('Completion loss: {}'.format(g_loss_value))
             print('Reference loss: {}'.format(ref_loss_value))
 
-            x_batch, mask_batch, _ = next(test_generator(BATCH_SIZE))
-            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})
+            x_batch, mask_batch, _, ref_batch = next(test_generator(BATCH_SIZE))
+            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, reference: ref_batch, is_training: False})
             sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
             cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
 
@@ -88,26 +101,28 @@ def train(train_size):
                 ref_loss_value += ref_loss
 
                 local_x_batch = []
+                local_x_batch_right = []
                 local_completion_batch = []
+                local_completion_batch_right = []
                 for i in range(BATCH_SIZE):
                     point = points_batch[i].reshape(2, 4)[0]
-                    point[0] = max(0, point[0])
-                    point[1] = max(0, point[1])
-                    x1, y1, x2, y2 = point[0], point[1], point[0] + LOCAL_SIZE, point[1] + LOCAL_SIZE
-                    if x2 > IMAGE_SIZE:
-                        x2 = IMAGE_SIZE
-                        x1 = x2 - LOCAL_SIZE
-                    if y2 > IMAGE_SIZE:
-                        y2 = IMAGE_SIZE
-                        y1 = y2 - LOCAL_SIZE
+                    x1, y1, x2, y2 = point_to_coords(point)
                     local_x_batch.append(x_batch[i][y1:y2, x1:x2, :])
                     local_completion_batch.append(completion[i][y1:y2, x1:x2, :])
+                    point = points_batch[i].reshape(2, 4)[1]
+                    x1, y1, x2, y2 = point_to_coords(point)
+                    local_x_batch_right.append(x_batch[i][y1:y2, x1:x2, :])
+                    local_completion_batch_right.append(completion[i][y1:y2, x1:x2, :])
                 local_x_batch = np.array(local_x_batch)
                 local_completion_batch = np.array(local_completion_batch)
+                local_x_batch_right = np.array(local_x_batch_right)
+                local_completion_batch_right = np.array(local_completion_batch_right)
 
                 _, d_loss = sess.run(
                     [d_train_op, model.d_loss], 
-                    feed_dict={x: x_batch, mask: mask_batch, reference: reference_batch, points: points_batch, local_x: local_x_batch, global_completion: completion, local_completion: local_completion_batch, is_training: True})
+                    feed_dict={x: x_batch, mask: mask_batch, reference: reference_batch, points: points_batch, local_x: local_x_batch,\
+                    local_x_right: local_x_batch_right, global_completion: completion, local_completion: local_completion_batch,\
+                    local_completion_right: local_completion_batch_right, is_training: True})
                 d_loss_value += d_loss
 
             print('Completion loss: {}'.format(g_loss_value))
