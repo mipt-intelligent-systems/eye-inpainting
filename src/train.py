@@ -14,6 +14,7 @@ BATCH_SIZE = 16
 PRETRAIN_EPOCH = 10
 
 PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
+TRAIN_SIZE = 97453
 
 def train():
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
@@ -39,9 +40,9 @@ def train():
         saver = tf.train.Saver()
         saver.restore(sess, './backup/latest')
 
-    train_generator, test_generator, train_size = get_full_dataset(PATH_CELEB_ALIGN_IMAGES, 0.9)
+    train_generator, test_generator = get_full_dataset(PATH_CELEB_ALIGN_IMAGES)
     
-    step_num = int(train_size / BATCH_SIZE)
+    step_num = int(TRAIN_SIZE / BATCH_SIZE)
 
     while True:
         sess.run(tf.assign(epoch, tf.add(epoch, 1)))
