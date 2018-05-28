@@ -16,21 +16,23 @@ PRETRAIN_EPOCH = 10
 PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
 
 
-def train(train_size=97453):
+def train(train_size):
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     mask = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 1])
+    reference = tf.placeholder(tf.float32, [BATCH_SIZE, 256])
+    points = tf.placeholder(tf.int32, [BATCH_SIZE, 8])
     local_x = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     global_completion = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     local_completion = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     is_training = tf.placeholder(tf.bool, [])
 
-    model = Network(x, mask, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
+    model = Network(x, mask, reference, points, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
     sess = tf.Session()
     global_step = tf.Variable(0, name='global_step', trainable=False)
     epoch = tf.Variable(0, name='epoch', trainable=False)
 
     opt = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE)
-    g_train_op = opt.minimize(model.g_loss, global_step=global_step, var_list=model.g_variables)
+    g_train_op = opt.minimize(model.g_loss + model.reference_loss, global_step=global_step, var_list=model.g_variables)
     d_train_op = opt.minimize(model.d_loss, global_step=global_step, var_list=model.d_variables)
 
     init_op = tf.global_variables_initializer()
@@ -53,13 +55,16 @@ def train(train_size=97453):
         # Completion 
         if sess.run(epoch) <= PRETRAIN_EPOCH:
             g_loss_value = 0
+            ref_loss_value = 0
             for i, (x_batch, mask_batch, points_batch, reference_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
                 if i == step_num:
                     break
-                _, g_loss = sess.run([g_train_op, model.g_loss], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
+                _, g_loss, ref_loss = sess.run([g_train_op, model.g_loss, model.reference_loss], feed_dict={x: x_batch, mask: mask_batch, reference: reference_batch, points: points_batch, is_training: True})
                 g_loss_value += g_loss
+                ref_loss_value += ref_loss
 
             print('Completion loss: {}'.format(g_loss_value))
+            print('Reference loss: {}'.format(ref_loss_value))
 
             x_batch, mask_batch, _ = next(test_generator(BATCH_SIZE))
             completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})
@@ -74,11 +79,13 @@ def train(train_size=97453):
         else:
             g_loss_value = 0
             d_loss_value = 0
+            ref_loss_value = 0
             for i, (x_batch, mask_batch, points_batch, reference_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
                 if i == step_num:
                     break
-                _, g_loss, completion = sess.run([g_train_op, model.g_loss, model.completion], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
+                _, g_loss, ref_loss, completion = sess.run([g_train_op, model.g_loss, model.reference_loss, model.completion], feed_dict={x: x_batch, mask: mask_batch, reference: reference_batch, points: points_batch, is_training: True})
                 g_loss_value += g_loss
+                ref_loss_value += ref_loss
 
                 local_x_batch = []
                 local_completion_batch = []
@@ -100,11 +107,12 @@ def train(train_size=97453):
 
                 _, d_loss = sess.run(
                     [d_train_op, model.d_loss], 
-                    feed_dict={x: x_batch, mask: mask_batch, local_x: local_x_batch, global_completion: completion, local_completion: local_completion_batch, is_training: True})
+                    feed_dict={x: x_batch, mask: mask_batch, reference: reference_batch, points: points_batch, local_x: local_x_batch, global_completion: completion, local_completion: local_completion_batch, is_training: True})
                 d_loss_value += d_loss
 
             print('Completion loss: {}'.format(g_loss_value))
             print('Discriminator loss: {}'.format(d_loss_value))
+            print('Reference loss: {}'.format(ref_loss_value))
 
             x_batch, mask_batch, _, _ = next(test_generator(BATCH_SIZE))
             completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})

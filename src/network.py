@@ -6,14 +6,18 @@ def eye_feature_extractor(eye_image):
 def extract_features(image, points):
     fx1, fy1, fx2, fy2 = points[0], points[1], points[2], points[3]
     sx1, sy1, sx2, sy2 = points[4], points[5], points[6], points[7]
-    first_eye = image[fy1:fy2, fx1:fx2, :]
-    second_eye = image[sy1:sy2, sx1:sx2, :]
+    first_eye = tf.slice(image, [fy1, fx1, 0], [fy2 - fy1, fx2 - fx1, 3])
+    second_eye = tf.slice(image, [sy1, sx1, 0], [sy2 - sy1, sx2 - sx1, 3])
     first_features = eye_feature_extractor(first_eye)
     second_features = eye_feature_extractor(second_eye)
     return tf.concat([first_features, second_features], 0)
 
+def extract_features_from_batch(image_batch, points_batch):
+    return tf.map_fn(lambda x: extract_features(x[0], x[1]), (image_batch, points_batch), dtype=(tf.float32))
+
+
 class Network:
-    def __init__(self, x, mask, local_x, global_completion, local_completion, is_training, batch_size):
+    def __init__(self, x, mask, reference, points, local_x, global_completion, local_completion, is_training, batch_size):
         self.batch_size = batch_size
         self.imitation = self.generator(x * (1 - mask), is_training)
         self.completion = self.imitation * mask + x * (1 - mask)
@@ -21,6 +25,7 @@ class Network:
         self.fake = self.discriminator(global_completion, local_completion, reuse=True)
         self.g_loss = self.calc_g_loss(x, self.completion)
         self.d_loss = self.calc_d_loss(self.real, self.fake)
+        self.reference_loss = self.calc_reference_loss(reference, self.completion, points)
         self.g_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
         self.d_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
 
@@ -160,6 +165,11 @@ class Network:
 
     def calc_g_loss(self, x, completion):
         loss = tf.nn.l2_loss(x - completion)
+        return tf.reduce_mean(loss)
+
+    def calc_reference_loss(self, reference, completion, points):
+        result_reference = extract_features_from_batch(completion, points)
+        loss = tf.nn.l2_loss(result_reference - reference)
         return tf.reduce_mean(loss)
 
     def calc_d_loss(self, real, fake):
