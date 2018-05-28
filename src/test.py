@@ -38,7 +38,7 @@ def test():
     saver = tf.train.Saver()
     saver.restore(sess, weights_path)
 
-    _, test_generator, _ = get_full_dataset(PATH_CELEB_ALIGN_IMAGES, 0.9)
+    _, test_generator = get_full_dataset(PATH_CELEB_ALIGN_IMAGES)
 
     cnt = 0
     for i, (X_batch, mask_batch, _) in tqdm.tqdm(enumerate(test_generator(BATCH_SIZE))):
