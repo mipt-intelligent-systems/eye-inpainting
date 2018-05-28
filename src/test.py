@@ -26,12 +26,14 @@ weights_path = join(PATH_WEIGHTS, 'latest')
 def test():
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     mask = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 1])
+    reference = tf.placeholder(tf.float32, [BATCH_SIZE, 256])
+    points = tf.placeholder(tf.int32, [BATCH_SIZE, 8])
     local_x = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     global_completion = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     local_completion = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     is_training = tf.placeholder(tf.bool, [])
 
-    model = Network(x, mask, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
+    model = Network(x, mask, reference, points, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
     sess = tf.Session()
     init_op = tf.global_variables_initializer()
     sess.run(init_op)
@@ -42,9 +44,9 @@ def test():
     _, test_generator = get_full_dataset(PATH_CELEB_ALIGN_IMAGES)
 
     cnt = 0
-    for i, (X_batch, mask_batch, _, _) in tqdm.tqdm(enumerate(test_generator(BATCH_SIZE))):
+    for i, (X_batch, mask_batch, _, reference_batch) in tqdm.tqdm(enumerate(test_generator(BATCH_SIZE))):
         
-        completion = sess.run(model.completion, feed_dict={x: X_batch, mask: mask_batch, is_training: False})
+        completion = sess.run(model.completion, feed_dict={x: X_batch, mask: mask_batch, reference: reference_batch, is_training: False})
         for i in range(BATCH_SIZE):
             cnt += 1
             raw = X_batch[i]
