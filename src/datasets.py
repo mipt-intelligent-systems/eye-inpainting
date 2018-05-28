@@ -25,7 +25,7 @@ def get_reference(filename, path_aligned, person_to_files):
     y = downscale256to128(y)
     return y
 
-def prepare_dataset(start, total_size, reference_by_path, path_aligned, dir, prefix):
+def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_to_files, dir, prefix):
     datasetFile = tables.open_file(join(dir, prefix + '-dataset.h5'), mode='w')
     imagesArray = datasetFile.create_earray(datasetFile.root, 'images', tables.Float32Atom(), (0, 128, 128, 3))
     masksArray = datasetFile.create_earray(datasetFile.root, 'masks', tables.UInt8Atom(), (0, 128, 128, 1))
@@ -85,6 +85,11 @@ def get_full_dataset(path_aligned):
 
 def prepare_full_dataset(path_aligned, train_ratio):
     reference = json.loads(open(join(path_aligned, 'data.json'), 'r').read())
+    person_to_files = {}
+    for person in reference.keys():
+        person_to_files[person] = []
+        for image_reference in reference[person]:
+            person_to_files[person].append(image_reference['filename'])
     # key - file name, value - map with eyes description
     reference_by_path = dict()
     for person in reference.keys():
@@ -92,6 +97,6 @@ def prepare_full_dataset(path_aligned, train_ratio):
             reference_by_path[image_reference['filename']] = image_reference
     filenames = list(reference_by_path.keys())
     train_size = int(train_ratio * len(filenames))
-    prepare_dataset(0, train_size, reference_by_path, path_aligned, './data/prepared', 'train')
-    prepare_dataset(train_size, len(filenames) - train_size, reference_by_path, path_aligned, './data/prepared', 'test')
+    prepare_dataset(0, train_size, reference_by_path, path_aligned, person_to_files, './data/prepared', 'train')
+    prepare_dataset(train_size, len(filenames) - train_size, reference_by_path, path_aligned, person_to_files, './data/prepared', 'test')
     return train_size
