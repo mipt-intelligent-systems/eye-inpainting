@@ -14,9 +14,8 @@ BATCH_SIZE = 16
 PRETRAIN_EPOCH = 10
 
 PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
-TRAIN_SIZE = 97453
 
-def train():
+def train(TRAIN_SIZE = 97453 ):
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     mask = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 1])
     local_x = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
