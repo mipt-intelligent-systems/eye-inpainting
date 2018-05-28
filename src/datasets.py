@@ -69,8 +69,6 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
         reference = np.array(reference)
         referencesArray.append(np.expand_dims(reference, 0))
         i += 1
-        if i > 100:
-            break
     datasetFile.close()
 
 
