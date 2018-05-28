@@ -1,5 +1,6 @@
 from src.layer import *
 
+
 class Network:
     def __init__(self, x, mask, local_x, global_completion, local_completion, is_training, batch_size):
         self.batch_size = batch_size
@@ -11,7 +12,6 @@ class Network:
         self.d_loss = self.calc_d_loss(self.real, self.fake)
         self.g_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
         self.d_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
-
 
     def generator(self, x, is_training):
         with tf.variable_scope('generator'):
@@ -85,7 +85,6 @@ class Network:
 
         return x
 
-
     def discriminator(self, global_x, local_x, reuse):
         def global_discriminator(x):
             is_training = tf.constant(True)
@@ -148,11 +147,9 @@ class Network:
                
         return output
 
-
     def calc_g_loss(self, x, completion):
         loss = tf.nn.l2_loss(x - completion)
         return tf.reduce_mean(loss)
-
 
     def calc_d_loss(self, real, fake):
         alpha = 4e-4

@@ -22,6 +22,7 @@ PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
 
 weights_path = join(PATH_WEIGHTS, 'latest')
 
+
 def test():
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     mask = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 1])
@@ -67,7 +68,6 @@ def get_mask(input_images):
                     m[y, x] = 1
         mask.append(m)
     return np.array(mask)
-
     
 
 def output_image(images, dst):
@@ -87,4 +87,3 @@ def output_image(images, dst):
 
 if __name__ == '__main__':
     test()
-    

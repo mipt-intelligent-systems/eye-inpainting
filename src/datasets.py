@@ -7,9 +7,11 @@ from os.path import join
 from tqdm import tqdm_notebook as tqdm
 import tables
 
+
 def downscale256to128(image):
     img = image[:, ::2, ::2]
     return img
+
 
 def get_reference(filename, path_aligned, person_to_files):
     person = filename.rsplit('-', 1)[0]
@@ -24,6 +26,7 @@ def get_reference(filename, path_aligned, person_to_files):
     y = read_image(path)
     y = downscale256to128(y)
     return y
+
 
 def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_to_files, dir, prefix):
     datasetFile = tables.open_file(join(dir, prefix + '-dataset.h5'), mode='w')
@@ -55,6 +58,7 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
         pointsArray.append(np.expand_dims(lpoints.copy() // 2, 0))
     datasetFile.close()
 
+
 def get_batch_generator(filename):
     def batch_generator(batch_size):
         datasetFile = tables.open_file(filename, mode='r')
@@ -78,10 +82,12 @@ def get_batch_generator(filename):
                 points = []
     return batch_generator
 
+
 def get_full_dataset(path_aligned):
     train_generator = get_batch_generator(join('./data/prepared', 'train-dataset.h5'))
     test_generator = get_batch_generator(join('./data/prepared', 'test-dataset.h5'))
     return train_generator, test_generator
+
 
 def prepare_full_dataset(path_aligned, train_ratio):
     reference = json.loads(open(join(path_aligned, 'data.json'), 'r').read())

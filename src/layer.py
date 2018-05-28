@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+
 def conv_layer(x, filter_shape, stride):
     filters = tf.get_variable(
         name='weight',
