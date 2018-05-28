@@ -6,12 +6,14 @@ import json
 from os.path import join
 from tqdm import tqdm_notebook as tqdm
 import tables
+from src.network import extract_features
+import tensorflow as tf
 
 def downscale256to128(image):
     img = image[:, ::2, ::2]
     return img
 
-def get_reference(filename, path_aligned, person_to_files):
+def get_reference(filename, path_aligned, person_to_files, reference_by_path, sess):
     person = filename.rsplit('-', 1)[0]
     person_files = person_to_files[person]
     if len(person_files) == 1:
@@ -23,27 +25,35 @@ def get_reference(filename, path_aligned, person_to_files):
     path = join(path_aligned, reference_file)
     y = read_image(path)
     y = downscale256to128(y)
-    return y
+    y = np.transpose(y, (1, 2, 0))
+    raw_rects = get_rects(reference_by_path[reference_file])
+    if raw_rects is None:
+        return None
+    reference_points = np.array(raw_rects).flatten() // 2
+    reference_features = sess.run(extract_features(y, reference_points))
+    return reference_features
 
 def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_to_files, dir, prefix):
+    sess = tf.Session()
     datasetFile = tables.open_file(join(dir, prefix + '-dataset.h5'), mode='w')
     imagesArray = datasetFile.create_earray(datasetFile.root, 'images', tables.Float32Atom(), (0, 128, 128, 3))
     masksArray = datasetFile.create_earray(datasetFile.root, 'masks', tables.UInt8Atom(), (0, 128, 128, 1))
     pointsArray = datasetFile.create_earray(datasetFile.root, 'points', tables.Int8Atom(), (0, 8))
-    #referencesArray = datasetFile.create_earray(datasetFile.root, 'references', tables.Float32Atom(), (0, 128, 128, 3))
+    referencesArray = datasetFile.create_earray(datasetFile.root, 'references', tables.Float32Atom(), (0, 256))
     images = []
     masks = []
     points = []
     references = []
     filenames = list(reference_by_path.keys())
+    i = 0
     for filename in tqdm(filenames[start:start + total_size]):
         path = join(path_aligned, filename)
         image = read_image(path)
         masked = np.zeros((1, 256, 256), dtype=np.uint8)
         make_input_image(masked, reference_by_path[filename], 1)
         rects = get_rects(reference_by_path[filename])
-        #reference = get_reference(filename, path_aligned, person_to_files)
-        if rects is None: #or reference is None:
+        reference = get_reference(filename, path_aligned, person_to_files, reference_by_path, sess)
+        if rects is None or reference is None:
             continue
         lpoints = np.array(rects).flatten()
         image = downscale256to128(image)
@@ -53,6 +63,11 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
         imagesArray.append(np.expand_dims(image, 0))
         masksArray.append(np.expand_dims(masked, 0))
         pointsArray.append(np.expand_dims(lpoints.copy() // 2, 0))
+        reference = np.array(reference)
+        referencesArray.append(np.expand_dims(reference, 0))
+        i += 1
+        if i > 100:
+            break
     datasetFile.close()
 
 def get_batch_generator(filename):
@@ -61,21 +76,26 @@ def get_batch_generator(filename):
         imagesNode = datasetFile.get_node('/images')
         masksNode = datasetFile.get_node('/masks')
         pointsNode = datasetFile.get_node('/points')
+        referenceNode = datasetFile.get_node('/references')
         images = []
         masks = []
         points = []
-        for image, mask, point in zip(imagesNode.iterrows(), masksNode.iterrows(), pointsNode.iterrows()):
+        references = []
+        for image, mask, point, reference in zip(imagesNode.iterrows(), masksNode.iterrows(), pointsNode.iterrows(), referenceNode.iterrows()):
             images.append(image)
             masks.append(mask)
             points.append(point)
+            references.append(reference)
             if len(images) == batch_size:
                 images = np.array(images)
                 masks = np.array(masks)
                 points = np.array(points)
-                yield images, masks, points
+                references = np.array(references)
+                yield images, masks, points, references
                 images = []
                 masks = []
                 points = []
+                references = []
     return batch_generator
 
 def get_full_dataset(path_aligned):

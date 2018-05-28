@@ -1,5 +1,17 @@
 from src.layer import *
 
+def eye_feature_extractor(eye_image):
+    return tf.fill([128], eye_image[0][0][0])
+
+def extract_features(image, points):
+    fx1, fy1, fx2, fy2 = points[0], points[1], points[2], points[3]
+    sx1, sy1, sx2, sy2 = points[4], points[5], points[6], points[7]
+    first_eye = image[fy1:fy2, fx1:fx2, :]
+    second_eye = image[sy1:sy2, sx1:sx2, :]
+    first_features = eye_feature_extractor(first_eye)
+    second_features = eye_feature_extractor(second_eye)
+    return tf.concat([first_features, second_features], 0)
+
 class Network:
     def __init__(self, x, mask, local_x, global_completion, local_completion, is_training, batch_size):
         self.batch_size = batch_size
@@ -11,7 +23,6 @@ class Network:
         self.d_loss = self.calc_d_loss(self.real, self.fake)
         self.g_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
         self.d_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
-
 
     def generator(self, x, is_training):
         with tf.variable_scope('generator'):

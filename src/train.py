@@ -52,7 +52,7 @@ def train(TRAIN_SIZE = 97453 ):
         # Completion 
         if sess.run(epoch) <= PRETRAIN_EPOCH:
             g_loss_value = 0
-            for i, (x_batch, mask_batch, points_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+            for i, (x_batch, mask_batch, points_batch, reference_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
                 if i == step_num:
                     break
                 _, g_loss = sess.run([g_train_op, model.g_loss], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
@@ -74,7 +74,7 @@ def train(TRAIN_SIZE = 97453 ):
         else:
             g_loss_value = 0
             d_loss_value = 0
-            for i, (x_batch, mask_batch, points_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+            for i, (x_batch, mask_batch, points_batch, reference_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
                 if i == step_num:
                     break
                 _, g_loss, completion = sess.run([g_train_op, model.g_loss, model.completion], feed_dict={x: x_batch, mask: mask_batch, is_training: True})
@@ -106,7 +106,7 @@ def train(TRAIN_SIZE = 97453 ):
             print('Completion loss: {}'.format(g_loss_value))
             print('Discriminator loss: {}'.format(d_loss_value))
 
-            x_batch, mask_batch, _ = next(test_generator(BATCH_SIZE))
+            x_batch, mask_batch, _, _ = next(test_generator(BATCH_SIZE))
             completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})
             sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
             cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))

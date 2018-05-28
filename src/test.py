@@ -41,7 +41,7 @@ def test():
     _, test_generator = get_full_dataset(PATH_CELEB_ALIGN_IMAGES)
 
     cnt = 0
-    for i, (X_batch, mask_batch, _) in tqdm.tqdm(enumerate(test_generator(BATCH_SIZE))):
+    for i, (X_batch, mask_batch, _, _) in tqdm.tqdm(enumerate(test_generator(BATCH_SIZE))):
         
         completion = sess.run(model.completion, feed_dict={x: X_batch, mask: mask_batch, is_training: False})
         for i in range(BATCH_SIZE):
