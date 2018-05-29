@@ -10,7 +10,7 @@ def eye_feature_extractor(eye_image, is_left_eye, autoencoder):
     return tf.run(autoencoder.encoded, feed_dict)[0]
 
 
-def extract_features(image, points, autoencoder, eye_size=16):
+def extract_features(image, points, autoencoder, eye_size=32):
     points = tf.clip_by_value(points, 0, 127)
     fx1, fy1, fx2, fy2 = points[0], points[1], points[2], points[3]
     sx1, sy1, sx2, sy2 = points[4], points[5], points[6], points[7]

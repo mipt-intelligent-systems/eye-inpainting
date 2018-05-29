@@ -8,7 +8,7 @@ from tqdm import tqdm_notebook as tqdm
 import tables
 from src.network import extract_features
 import tensorflow as tf
-
+from src.autoencoder import Autoencoder, EYE_SIZE
 
 PATH_DATA_PREPARED = join(PATH_DATA, 'prepared')
 
@@ -18,7 +18,7 @@ def downscale256to128(image):
     return img
 
 
-def get_reference(filename, path_aligned, person_to_files, reference_by_path, sess):
+def get_reference(filename, path_aligned, person_to_files, reference_by_path, sess, autoencoder):
     person = filename.rsplit('-', 1)[0]
     person_files = person_to_files[person]
     if len(person_files) == 1:
@@ -35,7 +35,7 @@ def get_reference(filename, path_aligned, person_to_files, reference_by_path, se
     if raw_rects is None:
         return None, None
     reference_points = np.array(raw_rects).flatten() // 2
-    reference_features = sess.run(extract_features(y, reference_points))
+    reference_features = sess.run(extract_features(y, reference_points, autoencoder))
     return reference_features, y
 
 
@@ -47,6 +47,11 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
     pointsArray = datasetFile.create_earray(datasetFile.root, 'points', tables.Int8Atom(), (0, 8))
     referencesArray = datasetFile.create_earray(datasetFile.root, 'references', tables.Float32Atom(), (0, 256))
     referenceImagesArray = datasetFile.create_earray(datasetFile.root, 'reference_images', tables.Float32Atom(), (0, 128, 128, 3))
+
+    is_training = tf.placeholder(tf.bool, [])
+    is_left_eye = tf.placeholder(tf.bool, [])
+    x_autoencoder = tf.placeholder(tf.float32, [1, EYE_SIZE, EYE_SIZE, 3])
+    autoencoder = Autoencoder(x_autoencoder, is_left_eye, is_training, 1)
 
     images = []
     masks = []
