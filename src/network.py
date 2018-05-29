@@ -5,7 +5,7 @@ from src.layer import flatten_layer, full_connection_layer
 
 
 def eye_feature_extractor(eye_image, is_left_eye, autoencoder):
-    # return np.random.uniform(size=(128,))
+    return np.random.uniform(size=(128,))
     feed_dict = {autoencoder.inputs['image']: [eye_image],
                  autoencoder.inputs['is_left_eye']: is_left_eye,
                  autoencoder.inputs['is_training']: False}
@@ -35,7 +35,7 @@ class Network:
                  is_training, batch_size, autoencoder):
         self.autoencoder = autoencoder
         self.batch_size = batch_size
-        self.imitation = self.generator(x * (1 - mask), is_training)
+        self.imitation = self.old_generator(x * (1 - mask), is_training)
         self.completion = self.imitation * mask + x * (1 - mask)
         self.real = self.discriminator(x, local_x, local_x_right, reuse=False)
         self.fake = self.discriminator(global_completion, local_completion, local_completion_right, reuse=True)
@@ -105,15 +105,15 @@ class Network:
                 x = batch_normalize(x, is_training)
                 x = tf.nn.relu(x)
             with tf.variable_scope('deconv5'):
-                x = deconv_layer(x, [3, 3, 128, 64], [self.batch_size, 32, 32, 64], 2)
+                x = deconv_layer(x, [3, 3, 64, 128], [self.batch_size, 32, 32, 64], 2)
                 x = batch_normalize(x, is_training)
                 x = tf.nn.relu(x)
             with tf.variable_scope('deconv6'):
-                x = deconv_layer(x, [3, 3, 64, 32], [self.batch_size, 64, 64, 32], 2)
+                x = deconv_layer(x, [3, 3, 32, 64], [self.batch_size, 64, 64, 32], 2)
                 x = batch_normalize(x, is_training)
                 x = tf.nn.relu(x)
             with tf.variable_scope('deconv7'):
-                x = deconv_layer(x, [3, 3, 32, 16], [self.batch_size, 128, 128, 16], 2)
+                x = deconv_layer(x, [3, 3, 16, 32], [self.batch_size, 128, 128, 16], 2)
                 x = batch_normalize(x, is_training)
                 x = tf.nn.relu(x)
             with tf.variable_scope('conv1_decoder'):
