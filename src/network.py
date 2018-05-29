@@ -3,10 +3,11 @@ from src.layer import conv_layer, batch_normalize, dilated_conv_layer, deconv_la
 from src.layer import flatten_layer, full_connection_layer
 
 
-def eye_feature_extractor(eye_image, autoencoder):
-    feed_dict = {autoencoder.input: [eye_image]}
-    features = tf.run(autoencoder.encoded, feed_dict)[0]
-    return features
+def eye_feature_extractor(eye_image, is_left_eye, autoencoder):
+    feed_dict = {autoencoder.inputs['image']: [eye_image],
+                 autoencoder.inputs['is_left_eye']: is_left_eye,
+                 autoencoder.inputs['is_training']: False}
+    return tf.run(autoencoder.encoded, feed_dict)[0]
 
 
 def extract_features(image, points, autoencoder, eye_size=16):
@@ -16,8 +17,8 @@ def extract_features(image, points, autoencoder, eye_size=16):
     # tf.Tensor supports slicing
     first_eye = image[fy1:fy1 + eye_size, fx1:fx1 + eye_size, :]
     second_eye = image[sy1:sy1 + eye_size, sx1:sx1 + eye_size, :]
-    first_features = eye_feature_extractor(first_eye, autoencoder)
-    second_features = eye_feature_extractor(second_eye, autoencoder)
+    first_features = eye_feature_extractor(first_eye, True, autoencoder)
+    second_features = eye_feature_extractor(second_eye, False, autoencoder)
     return tf.concat([first_features, second_features], 0)
 
 

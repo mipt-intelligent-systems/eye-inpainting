@@ -6,7 +6,12 @@ EYE_SIZE = 16
 
 class Autoencoder:
     def __init__(self, x, is_left_eye, is_training, batch_size):
-        self.x = x
+        self.inputs = {
+            'image': x,
+            'is_left_eye': is_left_eye,
+            'is_training': is_training
+        }
+
         self.batch_size = batch_size
         self.encoded = self.encoder(x, is_training)
         self.decoded_left = self.decoder(self.encoded, is_training, 'left')
