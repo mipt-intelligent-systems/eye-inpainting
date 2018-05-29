@@ -1,16 +1,18 @@
+import numpy as np
 import tensorflow as tf
 from src.layer import conv_layer, batch_normalize, dilated_conv_layer, deconv_layer
 from src.layer import flatten_layer, full_connection_layer
 
 
 def eye_feature_extractor(eye_image, is_left_eye, autoencoder):
+    # return np.random.uniform(size=(128,))
     feed_dict = {autoencoder.inputs['image']: [eye_image],
                  autoencoder.inputs['is_left_eye']: is_left_eye,
                  autoencoder.inputs['is_training']: False}
     return tf.run(autoencoder.encoded, feed_dict)[0]
 
 
-def extract_features(image, points, autoencoder, eye_size=16):
+def extract_features(image, points, autoencoder, eye_size=32):
     points = tf.clip_by_value(points, 0, 127)
     fx1, fy1, fx2, fy2 = points[0], points[1], points[2], points[3]
     sx1, sy1, sx2, sy2 = points[4], points[5], points[6], points[7]
@@ -44,6 +46,83 @@ class Network:
         self.d_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
 
     def generator(self, x, is_training):
+        with tf.variable_scope('generator'):
+            # encoder
+            with tf.variable_scope('conv1'):
+                x = conv_layer(x, [5, 5, 3, 16], 1)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('conv2'):
+                x = conv_layer(x, [3, 3, 16, 32], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('conv3'):
+                x = conv_layer(x, [3, 3, 32, 64], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('conv4'):
+                x = conv_layer(x, [3, 3, 64, 128], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('conv5'):
+                x = conv_layer(x, [3, 3, 128, 128], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('conv6'):
+                x = conv_layer(x, [3, 3, 128, 256], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('conv7'):
+                x = conv_layer(x, [3, 3, 256, 256], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('conv8'):
+                x = conv_layer(x, [3, 3, 256, 256], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('encoder_fc'):
+                x = flatten_layer(x)
+                x = full_connection_layer(x, 256)
+            # decoder
+            # add eye features here
+            with tf.variable_scope('decoder_fc'):
+                x = full_connection_layer(x, 256)
+                x = tf.reshape(x, [self.batch_size, 1, 1, 256])
+            with tf.variable_scope('deconv1'):
+                x = deconv_layer(x, [3, 3, 256, 256], [self.batch_size, 2, 2, 256], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('deconv2'):
+                x = deconv_layer(x, [3, 3, 256, 256], [self.batch_size, 4, 4, 256], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('deconv3'):
+                x = deconv_layer(x, [3, 3, 128, 256], [self.batch_size, 8, 8, 128], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('deconv4'):
+                x = deconv_layer(x, [3, 3, 128, 128], [self.batch_size, 16, 16, 128], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('deconv5'):
+                x = deconv_layer(x, [3, 3, 128, 64], [self.batch_size, 32, 32, 64], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('deconv6'):
+                x = deconv_layer(x, [3, 3, 64, 32], [self.batch_size, 64, 64, 32], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('deconv7'):
+                x = deconv_layer(x, [3, 3, 32, 16], [self.batch_size, 128, 128, 16], 2)
+                x = batch_normalize(x, is_training)
+                x = tf.nn.relu(x)
+            with tf.variable_scope('conv1_decoder'):
+                x = conv_layer(x, [5, 5, 16, 3], 1)
+                x = tf.nn.tanh(x)
+        return x
+
+
+    def old_generator(self, x, is_training):
         with tf.variable_scope('generator'):
             with tf.variable_scope('conv1'):
                 x = conv_layer(x, [5, 5, 3, 64], 1)
@@ -199,7 +278,7 @@ class Network:
             with tf.variable_scope('concatenation'):
                 output = tf.concat((global_output, local_output, local_right_output), 1)
                 output = full_connection_layer(output, 1)
-               
+
         return output
 
     def calc_g_loss(self, x, completion):
