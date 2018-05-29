@@ -1,14 +1,37 @@
 import tensorflow as tf
 from src.layer import conv_layer, batch_normalize, flatten_layer, full_connection_layer, deconv_layer
 import tqdm
+import tables
 import numpy as np
 from os.path import join
-from src.datasets import get_initial_train_dataset
 from src.utils.paths import PATH_DATA
 
 EYE_SIZE = 32
 LOCAL_SIZE = 32
 IMAGE_SIZE = 128
+
+PATH_DATA_PREPARED = join(PATH_DATA, 'prepared')
+
+def get_batch_generator(filename):
+    def batch_generator(batch_size):
+        datasetFile = tables.open_file(filename, mode='r')
+        imagesNode = datasetFile.get_node('/images')
+        masksNode = datasetFile.get_node('/masks')
+        pointsNode = datasetFile.get_node('/points')
+        images = []
+        masks = []
+        points = []
+        for image, mask, point in zip(imagesNode.iterrows(), masksNode.iterrows(), pointsNode.iterrows()):
+            images.append(image)
+            masks.append(mask)
+            points.append(point)
+            if len(images) == batch_size:
+                yield np.array(images), np.array(masks), np.array(points)
+                images, masks, points = [], [], []
+    return batch_generator
+
+def get_initial_train_dataset():
+    return get_batch_generator(join(PATH_DATA_PREPARED, 'train-dataset.h5')) 
 
 def point_to_coords(point):
     point[0] = max(0, point[0])
@@ -39,8 +62,8 @@ class Autoencoder:
         self.loss = tf.cond(is_left_eye, lambda: self.loss_left, lambda: self.loss_right)
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='autoencoder')
 
-    def encoder(self, x, is_training):
-        with tf.variable_scope('autoencoder'):
+    def encoder(self, x, is_training, reuse=False):
+        with tf.variable_scope('autoencoder', reuse=reuse):
             with tf.variable_scope('encoder'):
                 with tf.variable_scope('conv1'):
                     x = conv_layer(x, [5, 5, 3, 16], 1)
@@ -108,7 +131,7 @@ class Autoencoder:
 
 PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
 
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 LEARNING_RATE = 1e-3
 
 

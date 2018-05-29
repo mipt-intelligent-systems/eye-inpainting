@@ -40,12 +40,16 @@ def train(train_size):
     global_completion = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     local_completion = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     local_completion_right = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
+    reference_left = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
+    reference_right = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     is_training = tf.placeholder(tf.bool, [])
+    is_left_eye = tf.placeholder(tf.bool, [])
 
-    x_autoencoder = tf.placeholder(tf.float32, [1, EYE_SIZE, EYE_SIZE, 3])
-    autoencoder = Autoencoder(x_autoencoder, is_training, 1)
-    model = Network(x, mask, reference, points, local_x, local_x_right,
+    x_autoencoder = tf.placeholder(tf.float32, [BATCH_SIZE, EYE_SIZE, EYE_SIZE, 3])
+    autoencoder = Autoencoder(x_autoencoder, is_left_eye, is_training, BATCH_SIZE)
+    model = Network(x, mask,points, local_x, local_x_right,
                     global_completion, local_completion, local_completion_right,
+                    reference_left, reference_right,
                     is_training, batch_size=BATCH_SIZE, autoencoder=autoencoder)
     sess = tf.Session()
     global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -57,13 +61,14 @@ def train(train_size):
 
     init_op = tf.global_variables_initializer()
     sess.run(init_op)
-    if tf.train.get_checkpoint_state('./backup_autoencoder'):
-        saver = tf.train.Saver()
-        saver.restore(sess, './backup_autoencoder/latest')
 
     if tf.train.get_checkpoint_state('./backup'):
         saver = tf.train.Saver()
         saver.restore(sess, './backup/latest')
+
+    if tf.train.get_checkpoint_state('./backup_autoencoder'):
+        saver = tf.train.Saver()
+        saver.restore(sess, './backup_autoencoder/latest')
 
     train_generator, test_generator = get_full_dataset(PATH_CELEB_ALIGN_IMAGES)
     
@@ -79,10 +84,12 @@ def train(train_size):
         if sess.run(epoch) <= PRETRAIN_EPOCH:
             g_loss_value = 0
             ref_loss_value = 0
-            for i, (x_batch, mask_batch, points_batch, reference_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+            for i, (x_batch, mask_batch, points_batch, reference_left_batch, reference_right_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
                 if i == step_num:
                     break
-                _, g_loss, ref_loss = sess.run([g_train_op, model.g_loss, model.reference_loss], feed_dict={x: x_batch, mask: mask_batch, reference: reference_batch, points: points_batch, is_training: True})
+                _, g_loss, ref_loss = sess.run([g_train_op, model.g_loss, model.reference_loss], feed_dict={x: x_batch, mask: mask_batch, \
+                    reference_left: reference_left_batch, reference_right: reference_right_batch,\
+                    points: points_batch, is_training: True})
                 g_loss_value += g_loss
                 ref_loss_value += ref_loss
 
@@ -103,10 +110,10 @@ def train(train_size):
             g_loss_value = 0
             d_loss_value = 0
             ref_loss_value = 0
-            for i, (x_batch, mask_batch, points_batch, reference_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+            for i, (x_batch, mask_batch, points_batch, reference_left_batch, reference_right_batch) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
                 if i == step_num:
                     break
-                _, g_loss, ref_loss, completion = sess.run([g_train_op, model.g_loss, model.reference_loss, model.completion], feed_dict={x: x_batch, mask: mask_batch, reference: reference_batch, points: points_batch, is_training: True})
+                _, g_loss, ref_loss, completion = sess.run([g_train_op, model.g_loss, model.reference_loss, model.completion], feed_dict={x: x_batch, mask: mask_batch, reference_left: reference_left_batch, reference_right: reference_right_batch, points: points_batch, is_training: True})
                 g_loss_value += g_loss
                 ref_loss_value += ref_loss
 
