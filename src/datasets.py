@@ -99,9 +99,6 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
             referencesArrayRight.append(np.expand_dims(right, 0))
         if save_reference_images:
             referenceImagesArray.append(np.expand_dims(reference_image, 0))
-        #i += 1
-        #if i > 100:
-        #    break
     datasetFile.close()
 
 

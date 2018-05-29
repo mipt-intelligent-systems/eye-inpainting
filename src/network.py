@@ -11,6 +11,15 @@ def extract_features_from_eye_batches(left_batch, right_batch, autoencoder):
     right_result = autoencoder.encoder(right_batch, tf.cast(False, tf.bool), reuse=True)
     return left_result + right_result
 
+def get_sliced_eyes(completion, points):
+    fx1, fy1, fx2, fy2 = points[0], points[1], points[0] + LOCAL_SIZE, points[1] + LOCAL_SIZE
+    sx1, sy1, sx2, sy2 = points[4], points[5], points[4] + LOCAL_SIZE, points[5] + LOCAL_SIZE
+    first_eye = completion[fy1:fy2, fx1:fx2, :]
+    second_eye = completion[sy1:sy2, sx1:sx2, :]
+    first_eye.set_shape([LOCAL_SIZE, LOCAL_SIZE, 3])
+    second_eye.set_shape([LOCAL_SIZE, LOCAL_SIZE, 3])
+    return first_eye, second_eye
+
 class Network:
     def __init__(self, x, mask, points, local_x, local_x_right,
                  global_completion, local_completion, local_completion_right,
@@ -18,14 +27,15 @@ class Network:
                  is_training, batch_size, autoencoder):
         self.autoencoder = autoencoder
         self.batch_size = batch_size
-        reference = extract_features_from_eye_batches(reference_left, reference_right, autoencoder)
-        self.imitation = self.generator(x * (1 - mask), reference, is_training)
+        self.reference = extract_features_from_eye_batches(reference_left, reference_right, autoencoder)
+        self.imitation = self.generator(x * (1 - mask), self.reference, is_training)
         self.completion = self.imitation * mask + x * (1 - mask)
         self.real = self.discriminator(x, local_x, local_x_right, reuse=False)
         self.fake = self.discriminator(global_completion, local_completion, local_completion_right, reuse=True)
         self.g_loss = self.calc_g_loss(x, self.completion)
         self.d_loss = self.calc_d_loss(self.real, self.fake)
-        self.reference_loss = self.calc_reference_loss(reference, local_x, local_x_right)
+        self.sliced_eyes = tf.map_fn(lambda x: get_sliced_eyes(x[0], x[1]), (self.completion, points), dtype=(tf.float32, tf.float32))
+        self.reference_loss = self.calc_reference_loss(self.reference, self.sliced_eyes[0], self.sliced_eyes[1])
         self.g_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
         self.d_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
 
