@@ -1,7 +1,18 @@
-from src.layer import *
+import numpy as np
+import cv2
+import tensorflow as tf
+from src.layer import conv_layer, batch_normalize, dilated_conv_layer, deconv_layer
+from src.layer import flatten_layer, full_connection_layer
+from src.autoencoder import Autoencoder
 
-def eye_feature_extractor(eye_image):
+
+def eye_feature_extractor(eye_image, autoencoder=None, size=(16, 16)):
+    if eye_image.shape[:-1] != size:
+        eye_image = np.array([cv2.resize(eye_image[:, :, i], size) for i in range(eye_image.shape[-1])])
+    # x = eye_image
+    # autoencoder = autoencoder or Autoencoder(x)
     return tf.fill([128], eye_image[0][0][0])
+
 
 def extract_features(image, points):
     points = tf.clip_by_value(points, 0, 127)

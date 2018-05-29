@@ -98,16 +98,8 @@ def get_batch_generator(filename, load_reference_images=False):
                 references.append(reference)
                 reference_images.append(referenceImage)
                 if len(images) == batch_size:
-                    images = np.array(images)
-                    masks = np.array(masks)
-                    points = np.array(points)
-                    references = np.array(references)
-                    yield images, masks, points, references, reference_images
-                    images = []
-                    masks = []
-                    points = []
-                    references = []
-                    reference_images = []
+                    yield np.array(images), np.array(masks), np.array(points), np.array(references), np.array(reference_images)
+                    images, masks, points, references, reference_images = [], [], [], [], []
         else:
             for image, mask, point, reference in zip(imagesNode.iterrows(), masksNode.iterrows(), pointsNode.iterrows(), referenceNode.iterrows()):
                 images.append(image)
@@ -115,15 +107,8 @@ def get_batch_generator(filename, load_reference_images=False):
                 points.append(point)
                 references.append(reference)
                 if len(images) == batch_size:
-                    images = np.array(images)
-                    masks = np.array(masks)
-                    points = np.array(points)
-                    references = np.array(references)
-                    yield images, masks, points, references
-                    images = []
-                    masks = []
-                    points = []
-                    references = []
+                    yield np.array(images), np.array(masks), np.array(points), np.array(references)
+                    images, masks, points, references = [], [], [], []
     return batch_generator
 
 
