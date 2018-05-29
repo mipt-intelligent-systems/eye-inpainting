@@ -47,7 +47,7 @@ def train(train_size):
 
     x_autoencoder = tf.placeholder(tf.float32, [BATCH_SIZE, EYE_SIZE, EYE_SIZE, 3])
     autoencoder = Autoencoder(x_autoencoder, is_left_eye, is_training, BATCH_SIZE)
-    model = Network(x, mask,points, local_x, local_x_right,
+    model = Network(x, mask, points, local_x, local_x_right,
                     global_completion, local_completion, local_completion_right,
                     reference_left, reference_right,
                     is_training, batch_size=BATCH_SIZE, autoencoder=autoencoder)
@@ -96,8 +96,8 @@ def train(train_size):
             print('Completion loss: {}'.format(g_loss_value))
             print('Reference loss: {}'.format(ref_loss_value))
 
-            x_batch, mask_batch, _, ref_batch = next(test_generator(BATCH_SIZE))
-            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, reference: ref_batch, is_training: False})
+            x_batch, mask_batch, _, reference_left_batch, reference_right_batch = next(test_generator(BATCH_SIZE))
+            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, reference_left: reference_left_batch, reference_right: reference_right_batch, is_training: False})
             sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
             cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
 
@@ -137,7 +137,7 @@ def train(train_size):
 
                 _, d_loss = sess.run(
                     [d_train_op, model.d_loss], 
-                    feed_dict={x: x_batch, mask: mask_batch, reference: reference_batch, points: points_batch, local_x: local_x_batch,\
+                    feed_dict={x: x_batch, mask: mask_batch, reference_left: reference_left_batch, reference_right: reference_right_batch, points: points_batch, local_x: local_x_batch,\
                     local_x_right: local_x_batch_right, global_completion: completion, local_completion: local_completion_batch,\
                     local_completion_right: local_completion_batch_right, is_training: True})
                 d_loss_value += d_loss
@@ -146,8 +146,8 @@ def train(train_size):
             print('Discriminator loss: {}'.format(d_loss_value))
             print('Reference loss: {}'.format(ref_loss_value))
 
-            x_batch, mask_batch, _, _ = next(test_generator(BATCH_SIZE))
-            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, is_training: False})
+            x_batch, mask_batch, _, reference_left_batch, reference_right_batch = next(test_generator(BATCH_SIZE))
+            completion = sess.run(model.completion, feed_dict={x: x_batch, mask: mask_batch, reference_left: reference_left_batch, reference_right: reference_right_batch, is_training: False})
             sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
             cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
 
