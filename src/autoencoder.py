@@ -78,21 +78,22 @@ class Autoencoder:
 
 if __name__ == '__main__':
     import tqdm
+    import numpy as np
     from os.path import join
     from src.datasets import get_full_dataset
     from src.utils.paths import PATH_DATA
 
     PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
 
-    BATCH_SIZE = 32
+    BATCH_SIZE = 16
     LEARNING_RATE = 1e-3
 
 
     def train(train_size=97453):
-        x = tf.placeholder(tf.float32, [BATCH_SIZE, EYE_SIZE, EYE_SIZE, 3])
+        x = tf.placeholder(tf.float32, [BATCH_SIZE * 2, EYE_SIZE, EYE_SIZE, 3])
         is_training = tf.placeholder(tf.bool, [])
 
-        model = Autoencoder(x, is_training, BATCH_SIZE)
+        model = Autoencoder(x, is_training, BATCH_SIZE * 2)
         sess = tf.Session()
         global_step = tf.Variable(0, name='global_step', trainable=False)
         epoch = tf.Variable(0, name='epoch', trainable=False)
@@ -117,11 +118,19 @@ if __name__ == '__main__':
 
             # np.random.shuffle(x_train)
             train_loss = 0
-            for i, x_batch in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+            for i, (x_batch, _, points_batch, _) in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
                 if i == step_num:
                     break
+                x_batch_new = []
+                for image, points in zip(x_batch, points_batch):
+                    fx1, fy1, fx2, fy2 = points[0], points[1], points[2], points[3]
+                    sx1, sy1, sx2, sy2 = points[4], points[5], points[6], points[7]
+                    first_eye = image[fy1:fy1 + EYE_SIZE, fx1:fx1 + EYE_SIZE, :]
+                    second_eye = image[sy1:sy1 + EYE_SIZE, sx1:sx1 + EYE_SIZE, :]
+                    x_batch_new.append(first_eye)
+                    x_batch_new.append(second_eye)
                 _, loss = sess.run([train_op, model.loss],
-                                   feed_dict={x: x_batch, is_training: True})
+                                   feed_dict={x: np.array(x_batch_new), is_training: True})
                 train_loss += loss
 
             print('Loss: {}'.format(train_loss))
