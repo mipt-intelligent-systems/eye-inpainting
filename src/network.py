@@ -27,6 +27,8 @@ class Network:
                  is_training, batch_size, autoencoder):
         self.autoencoder = autoencoder
         self.batch_size = batch_size
+        self.left_ref = reference_left
+        self.right_ref = reference_right
         self.reference = extract_features_from_eye_batches(reference_left, reference_right, autoencoder)
         self.imitation = self.generator(x * (1 - mask), self.reference, is_training)
         self.completion = self.imitation * mask + x * (1 - mask)
@@ -34,8 +36,7 @@ class Network:
         self.fake = self.discriminator(global_completion, local_completion, local_completion_right, reuse=True)
         self.g_loss = self.calc_g_loss(x, self.completion)
         self.d_loss = self.calc_d_loss(self.real, self.fake)
-        self.sliced_eyes = tf.map_fn(lambda x: get_sliced_eyes(x[0], x[1]), (self.completion, points), dtype=(tf.float32, tf.float32))
-        self.reference_loss = self.calc_reference_loss(self.reference, self.sliced_eyes[0], self.sliced_eyes[1])
+        self.reference_loss = self.calc_reference_loss(points, self.completion)
         self.g_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
         self.d_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
 
@@ -241,9 +242,10 @@ class Network:
         loss = tf.nn.l2_loss(x - completion)
         return tf.reduce_mean(loss)
 
-    def calc_reference_loss(self, reference, left_batch, right_batch):
-        result_reference = extract_features_from_eye_batches(left_batch, right_batch, self.autoencoder)
-        loss = tf.nn.l2_loss(result_reference - reference)
+    def calc_reference_loss(self, points, image):
+        sliced_eyes = tf.map_fn(lambda x: get_sliced_eyes(x[0], x[1]), (image, points), dtype=(tf.float32, tf.float32))
+        result_reference = extract_features_from_eye_batches(sliced_eyes[0], sliced_eyes[1], self.autoencoder)
+        loss = tf.nn.l2_loss(result_reference - self.reference)
         return tf.reduce_mean(loss)
 
     def calc_d_loss(self, real, fake):
