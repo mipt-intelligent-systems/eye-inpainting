@@ -48,7 +48,7 @@ class Network:
         self.fake = self.discriminator(global_completion, local_completion, local_completion_right, reuse=True)
         self.g_loss = self.calc_g_loss(x, self.completion)
         self.d_loss = self.calc_d_loss(self.real, self.fake)
-        self.reference_loss = self.calc_reference_loss(reference, self.completion, points)
+        self.reference_loss = self.calc_reference_loss(reference, local_x, local_x_right)
         self.g_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
         self.d_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
 
