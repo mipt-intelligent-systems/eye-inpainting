@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append('..')
 from src.network import Network
+from src.autoencoder import Autoencoder, EYE_SIZE
 from src.utils.paths import PATH_DATA, PATH_WEIGHTS, PATH_OUTPUT
 from src.datasets import get_final_test_dataset
 from os.path import join
@@ -35,7 +36,11 @@ def test():
     local_completion_right = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     is_training = tf.placeholder(tf.bool, [])
 
-    model = Network(x, mask, reference, points, local_x, local_x_right, global_completion, local_completion, local_completion_right, is_training, batch_size=BATCH_SIZE)
+    x_autoencoder = tf.placeholder(tf.float32, [1, EYE_SIZE, EYE_SIZE, 3])
+    autoencoder = Autoencoder(x_autoencoder, is_training, 1)
+    model = Network(x, mask, reference, points, local_x, local_x_right,
+                    global_completion, local_completion, local_completion_right,
+                    is_training, batch_size=BATCH_SIZE, autoencoder=autoencoder)
     sess = tf.Session()
     init_op = tf.global_variables_initializer()
     sess.run(init_op)

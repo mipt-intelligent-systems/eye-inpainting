@@ -1,35 +1,36 @@
-import numpy as np
-import cv2
 import tensorflow as tf
 from src.layer import conv_layer, batch_normalize, dilated_conv_layer, deconv_layer
 from src.layer import flatten_layer, full_connection_layer
-from src.autoencoder import Autoencoder
 
 
-def eye_feature_extractor(eye_image, autoencoder=None, size=(16, 16)):
-    if eye_image.shape[:-1] != size:
-        eye_image = np.array([cv2.resize(eye_image[:, :, i], size) for i in range(eye_image.shape[-1])])
-    # x = eye_image
-    # autoencoder = autoencoder or Autoencoder(x)
-    return tf.fill([128], eye_image[0][0][0])
+def eye_feature_extractor(eye_image, autoencoder):
+    feed_dict = {autoencoder.input: [eye_image]}
+    features = tf.run(autoencoder.encoded, feed_dict)[0]
+    return features
 
 
-def extract_features(image, points):
+def extract_features(image, points, autoencoder, eye_size=16):
     points = tf.clip_by_value(points, 0, 127)
     fx1, fy1, fx2, fy2 = points[0], points[1], points[2], points[3]
     sx1, sy1, sx2, sy2 = points[4], points[5], points[6], points[7]
-    first_eye = tf.slice(image, [fy1, fx1, 0], [fy2 - fy1, fx2 - fx1, 3])
-    second_eye = tf.slice(image, [sy1, sx1, 0], [sy2 - sy1, sx2 - sx1, 3])
-    first_features = eye_feature_extractor(first_eye)
-    second_features = eye_feature_extractor(second_eye)
+    # tf.Tensor supports slicing
+    first_eye = image[fy1:fy1 + eye_size, fx1:fx1 + eye_size, :]
+    second_eye = image[sy1:sy1 + eye_size, sx1:sx1 + eye_size, :]
+    first_features = eye_feature_extractor(first_eye, autoencoder)
+    second_features = eye_feature_extractor(second_eye, autoencoder)
     return tf.concat([first_features, second_features], 0)
 
-def extract_features_from_batch(image_batch, points_batch):
-    return tf.map_fn(lambda x: extract_features(x[0], x[1]), (image_batch, points_batch), dtype=(tf.float32))
+
+def extract_features_from_batch(image_batch, points_batch, autoencoder):
+    return tf.map_fn(lambda x: extract_features(x[0], x[1], autoencoder),
+                     (image_batch, points_batch), dtype=tf.float32)
 
 
 class Network:
-    def __init__(self, x, mask, reference, points, local_x, local_x_right, global_completion, local_completion, local_completion_right, is_training, batch_size):
+    def __init__(self, x, mask, reference, points, local_x, local_x_right,
+                 global_completion, local_completion, local_completion_right,
+                 is_training, batch_size, autoencoder):
+        self.autoencoder = autoencoder
         self.batch_size = batch_size
         self.imitation = self.generator(x * (1 - mask), is_training)
         self.completion = self.imitation * mask + x * (1 - mask)
@@ -189,7 +190,6 @@ class Network:
                     x = flatten_layer(x)
                     x = full_connection_layer(x, 1024)
             return x
-            
 
         with tf.variable_scope('discriminator', reuse=reuse):
             global_output = global_discriminator(global_x)
@@ -206,7 +206,7 @@ class Network:
         return tf.reduce_mean(loss)
 
     def calc_reference_loss(self, reference, completion, points):
-        result_reference = extract_features_from_batch(completion, points)
+        result_reference = extract_features_from_batch(completion, points, self.autoencoder)
         loss = tf.nn.l2_loss(result_reference - reference)
         return tf.reduce_mean(loss)
 
@@ -215,4 +215,3 @@ class Network:
         d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real, labels=tf.ones_like(real)))
         d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake, labels=tf.zeros_like(fake)))
         return tf.add(d_loss_real, d_loss_fake) * alpha
-

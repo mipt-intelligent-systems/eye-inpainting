@@ -1,9 +1,12 @@
 import tensorflow as tf
 from src.layer import conv_layer, batch_normalize, flatten_layer, full_connection_layer, deconv_layer
 
+EYE_SIZE = 16
+
 
 class Autoencoder:
     def __init__(self, x, is_training, batch_size):
+        self.input = x
         self.batch_size = batch_size
         self.encoded = self.encoder(x, is_training)
         self.decoded_left = self.decoder(self.encoded, is_training, 'left')
@@ -46,7 +49,7 @@ class Autoencoder:
             with tf.variable_scope(f'decoder_{name_prefix}'):
                 with tf.variable_scope('fc'):
                     x = full_connection_layer(x, 256)
-                    x = tf.reshape(x, [-1, 256, 1, 1])
+                    x = tf.reshape(x, [self.batch_size, 1, 1, 256])
                 with tf.variable_scope('deconv1'):
                     x = deconv_layer(x, [3, 3, 128, 256], [self.batch_size, 2, 2, 128], 2)
                     x = batch_normalize(x, is_training)
@@ -71,3 +74,60 @@ class Autoencoder:
     def calc_loss(self, x_original, x_decoded):
         loss = tf.nn.l2_loss(x_original - x_decoded)
         return tf.reduce_mean(loss)
+
+
+if __name__ == '__main__':
+    import tqdm
+    from os.path import join
+    from src.datasets import get_full_dataset
+    from src.utils.paths import PATH_DATA
+
+    PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
+
+    BATCH_SIZE = 32
+    LEARNING_RATE = 1e-3
+
+
+    def train(train_size=97453):
+        x = tf.placeholder(tf.float32, [BATCH_SIZE, EYE_SIZE, EYE_SIZE, 3])
+        is_training = tf.placeholder(tf.bool, [])
+
+        model = Autoencoder(x, is_training, BATCH_SIZE)
+        sess = tf.Session()
+        global_step = tf.Variable(0, name='global_step', trainable=False)
+        epoch = tf.Variable(0, name='epoch', trainable=False)
+
+        opt = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE)
+        train_op = opt.minimize(model.loss, global_step=global_step, var_list=model.variables)
+
+        init_op = tf.global_variables_initializer()
+        sess.run(init_op)
+
+        if tf.train.get_checkpoint_state('./backup_autoencoder'):
+            saver = tf.train.Saver()
+            saver.restore(sess, './backup_autoencoder/latest')
+
+        train_generator, test_generator = get_full_dataset(PATH_CELEB_ALIGN_IMAGES)
+
+        step_num = int(train_size / BATCH_SIZE)
+
+        while True:
+            sess.run(tf.assign(epoch, tf.add(epoch, 1)))
+            print('epoch: {}'.format(sess.run(epoch)))
+
+            # np.random.shuffle(x_train)
+            train_loss = 0
+            for i, x_batch in tqdm.tqdm(enumerate(train_generator(BATCH_SIZE)), total=step_num):
+                if i == step_num:
+                    break
+                _, loss = sess.run([train_op, model.loss],
+                                   feed_dict={x: x_batch, is_training: True})
+                train_loss += loss
+
+            print('Loss: {}'.format(train_loss))
+
+            saver = tf.train.Saver()
+            saver.save(sess, './backup_autoencoder/latest', write_meta_graph=False)
+
+
+    train()

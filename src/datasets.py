@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from src.utils.paths import PROCESSED_NPY_DATA
+from src.utils.paths import PROCESSED_NPY_DATA, PATH_DATA
 from src.utils.io import read_image, draw_rectangle, make_input_image, get_rects
 import json
 from os.path import join
@@ -8,6 +8,9 @@ from tqdm import tqdm_notebook as tqdm
 import tables
 from src.network import extract_features
 import tensorflow as tf
+
+
+PATH_DATA_PREPARED = join(PATH_DATA, 'prepared')
 
 
 def downscale256to128(image):
@@ -113,12 +116,13 @@ def get_batch_generator(filename, load_reference_images=False):
 
 
 def get_full_dataset(path_aligned):
-    train_generator = get_batch_generator(join('./data/prepared', 'train-dataset.h5'))
-    test_generator = get_batch_generator(join('./data/prepared', 'test-dataset.h5'))
+    train_generator = get_batch_generator(join(PATH_DATA_PREPARED, 'train-dataset.h5'))
+    test_generator = get_batch_generator(join(PATH_DATA_PREPARED, 'test-dataset.h5'))
     return train_generator, test_generator
 
+
 def get_final_test_dataset():
-    return get_batch_generator(join('./data/prepared', 'test-dataset.h5'), True)
+    return get_batch_generator(join(PATH_DATA_PREPARED, 'test-dataset.h5'), True)
 
 
 def prepare_full_dataset(path_aligned, train_ratio):
@@ -135,6 +139,7 @@ def prepare_full_dataset(path_aligned, train_ratio):
             reference_by_path[image_reference['filename']] = image_reference
     filenames = list(reference_by_path.keys())
     train_size = int(train_ratio * len(filenames))
-    prepare_dataset(0, train_size, reference_by_path, path_aligned, person_to_files, './data/prepared', 'train')
-    prepare_dataset(train_size, len(filenames) - train_size, reference_by_path, path_aligned, person_to_files, './data/prepared', 'test', True)
+    prepare_dataset(0, train_size, reference_by_path, path_aligned, person_to_files, PATH_DATA_PREPARED, 'train')
+    prepare_dataset(train_size, len(filenames) - train_size, reference_by_path, path_aligned, person_to_files,
+                    PATH_DATA_PREPARED, 'test', True)
     return train_size

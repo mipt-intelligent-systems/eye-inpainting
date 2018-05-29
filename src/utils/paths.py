@@ -1,7 +1,7 @@
-from os.path import dirname, join
+from os.path import dirname, join, abspath
 
 
-PATH_PROJECT = dirname(dirname(dirname(__file__)))
+PATH_PROJECT = abspath(dirname(dirname(dirname(__file__))))
 PATH_DATA = join(PATH_PROJECT, 'data')
 PROCESSED_NPY_DATA = join(PATH_DATA, 'npy')
 PATH_SRC = join(PATH_PROJECT, 'src')

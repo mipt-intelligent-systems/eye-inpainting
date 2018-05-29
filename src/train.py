@@ -3,6 +3,7 @@ import tensorflow as tf
 import cv2
 import tqdm
 from src.network import Network
+from src.autoencoder import Autoencoder, EYE_SIZE
 from src.datasets import get_full_dataset
 from src.utils.paths import PATH_DATA
 from os.path import join
@@ -14,6 +15,7 @@ BATCH_SIZE = 16
 PRETRAIN_EPOCH = 10
 
 PATH_CELEB_ALIGN_IMAGES = join(PATH_DATA, 'celeb_id_aligned')
+
 
 def point_to_coords(point):
     point[0] = max(0, point[0])
@@ -27,6 +29,7 @@ def point_to_coords(point):
         y1 = y2 - LOCAL_SIZE
     return x1, y1, x2, y2
 
+
 def train(train_size):
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     mask = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 1])
@@ -39,7 +42,11 @@ def train(train_size):
     local_completion_right = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     is_training = tf.placeholder(tf.bool, [])
 
-    model = Network(x, mask, reference, points, local_x, local_x_right, global_completion, local_completion, local_completion_right, is_training, batch_size=BATCH_SIZE)
+    x_autoencoder = tf.placeholder(tf.float32, [1, EYE_SIZE, EYE_SIZE, 3])
+    autoencoder = Autoencoder(x_autoencoder, is_training, 1)
+    model = Network(x, mask, reference, points, local_x, local_x_right,
+                    global_completion, local_completion, local_completion_right,
+                    is_training, batch_size=BATCH_SIZE, autoencoder=autoencoder)
     sess = tf.Session()
     global_step = tf.Variable(0, name='global_step', trainable=False)
     epoch = tf.Variable(0, name='epoch', trainable=False)
@@ -50,6 +57,9 @@ def train(train_size):
 
     init_op = tf.global_variables_initializer()
     sess.run(init_op)
+    if tf.train.get_checkpoint_state('./backup_autoencoder'):
+        saver = tf.train.Saver()
+        saver.restore(sess, './backup_autoencoder/latest')
 
     if tf.train.get_checkpoint_state('./backup'):
         saver = tf.train.Saver()
