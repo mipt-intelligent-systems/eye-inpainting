@@ -55,17 +55,17 @@ def train(train_size):
                     reference_left, reference_right,
                     is_training, batch_size=BATCH_SIZE, autoencoder=autoencoder)
     opt = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE)
-    global_step = tf.Variable(0, name='global_step_main', trainable=False)
-    epoch = tf.Variable(0, name='epoch_main', trainable=False)
+    global_step = tf.Variable(0, name='global_step', trainable=False)
+    epoch = tf.Variable(0, name='epoch', trainable=False)
     g_train_op = opt.minimize(model.g_loss, global_step=global_step, var_list=model.g_variables)
     ref_train_op = opt.minimize(model.reference_loss, global_step=global_step, var_list=model.g_variables)
+
+    init_op = tf.global_variables_initializer()
+    sess.run(init_op)
 
     if tf.train.get_checkpoint_state('./backup'):
         saver = tf.train.Saver()
         saver.restore(sess, './backup/latest')
-    
-    init_op = tf.global_variables_initializer()
-    sess.run(init_op)
 
     saver = tf.train.Saver(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='autoencoder'))
     saver.restore(sess, './backup_autoencoder/latest')
