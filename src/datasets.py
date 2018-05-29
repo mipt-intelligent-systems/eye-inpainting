@@ -39,7 +39,7 @@ def get_reference(filename, path_aligned, person_to_files, reference_by_path, se
     return reference_features, y
 
 
-def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_to_files, dir, prefix, save_reference_images=False):
+def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_to_files, dir, prefix, save_reference_images=False, calc_reference=True):
     sess = tf.Session()
     datasetFile = tables.open_file(join(dir, prefix + '-dataset.h5'), mode='w')
     imagesArray = datasetFile.create_earray(datasetFile.root, 'images', tables.Float32Atom(), (0, 128, 128, 3))
@@ -60,8 +60,10 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
         masked = np.zeros((1, 256, 256), dtype=np.uint8)
         make_input_image(masked, reference_by_path[filename], 1)
         rects = get_rects(reference_by_path[filename])
-        reference, reference_image = get_reference(filename, path_aligned, person_to_files, reference_by_path, sess)
-        if rects is None or reference is None:
+        reference, reference_image = None, None
+        if calc_reference:
+            reference, reference_image = get_reference(filename, path_aligned, person_to_files, reference_by_path, sess)
+        if rects is None or calc_reference and reference is None:
             continue
         lpoints = np.array(rects).flatten()
         image = downscale256to128(image)
@@ -71,14 +73,15 @@ def prepare_dataset(start, total_size, reference_by_path, path_aligned, person_t
         imagesArray.append(np.expand_dims(image, 0))
         masksArray.append(np.expand_dims(masked, 0))
         pointsArray.append(np.expand_dims(lpoints.copy() // 2, 0))
-        reference = np.array(reference)
-        referencesArray.append(np.expand_dims(reference, 0))
+        if calc_reference:
+            reference = np.array(reference)
+            referencesArray.append(np.expand_dims(reference, 0))
         if save_reference_images:
             referenceImagesArray.append(np.expand_dims(reference_image, 0))
     datasetFile.close()
 
 
-def get_batch_generator(filename, load_reference_images=False):
+def get_batch_generator(filename, load_reference_images=False, load_references=True):
     def batch_generator(batch_size):
         datasetFile = tables.open_file(filename, mode='r')
         imagesNode = datasetFile.get_node('/images')
@@ -93,7 +96,15 @@ def get_batch_generator(filename, load_reference_images=False):
         points = []
         references = []
         reference_images = []
-        if load_reference_images:
+        if not load_references:
+            for image, mask, point in zip(imagesNode.iterrows(), masksNode.iterrows(), pointsNode.iterrows()):
+                images.append(image)
+                masks.append(mask)
+                points.append(point)
+                if len(images) == batch_size:
+                    yield np.array(images), np.array(masks), np.array(points)
+                    images, masks, points, references, reference_images = [], [], [], [], []
+        elif load_reference_images:
             for image, mask, point, reference, referenceImage in zip(imagesNode.iterrows(), masksNode.iterrows(), pointsNode.iterrows(), referenceNode.iterrows(), referenceImagesNode.iterrows()):
                 images.append(image)
                 masks.append(mask)
@@ -120,10 +131,27 @@ def get_full_dataset(path_aligned):
     test_generator = get_batch_generator(join(PATH_DATA_PREPARED, 'test-dataset.h5'))
     return train_generator, test_generator
 
+def get_initial_train_dataset():
+    return get_batch_generator(join(PATH_DATA_PREPARED, 'train-dataset.h5'), False, False) 
 
 def get_final_test_dataset():
     return get_batch_generator(join(PATH_DATA_PREPARED, 'test-dataset.h5'), True)
 
+def prepare_non_reference_train_dataset(path_aligned):
+    reference = json.loads(open(join(path_aligned, 'data.json'), 'r').read())
+    person_to_files = {}
+    for person in reference.keys():
+        person_to_files[person] = []
+        for image_reference in reference[person]:
+            person_to_files[person].append(image_reference['filename'])
+    # key - file name, value - map with eyes description
+    reference_by_path = dict()
+    for person in reference.keys():
+        for image_reference in reference[person]:
+            reference_by_path[image_reference['filename']] = image_reference
+    filenames = list(reference_by_path.keys())
+    train_size = len(filenames)
+    prepare_dataset(0, train_size, reference_by_path, path_aligned, person_to_files, PATH_DATA_PREPARED, 'train', False, False)
 
 def prepare_full_dataset(path_aligned, train_ratio):
     reference = json.loads(open(join(path_aligned, 'data.json'), 'r').read())

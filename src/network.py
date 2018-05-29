@@ -26,6 +26,15 @@ def extract_features_from_batch(image_batch, points_batch, autoencoder):
     return tf.map_fn(lambda x: extract_features(x[0], x[1], autoencoder),
                      (image_batch, points_batch), dtype=tf.float32)
 
+def extract_features_from_eye_batches(left_batch, rigth_batch, autoencoder):
+    left_result = tf.run(autoencoder.encoded, {autoencoder.inputs['image']: left_batch,
+                 autoencoder.inputs['is_left_eye']: True,
+                 autoencoder.inputs['is_training']: False})
+    right_result = tf.run(autoencoder.encoded, {autoencoder.inputs['image']: rigth_batch,
+                 autoencoder.inputs['is_left_eye']: False,
+                 autoencoder.inputs['is_training']: False})
+    return tf.concat([left_result, right_result], -1)
+
 
 class Network:
     def __init__(self, x, mask, reference, points, local_x, local_x_right,
@@ -206,8 +215,8 @@ class Network:
         loss = tf.nn.l2_loss(x - completion)
         return tf.reduce_mean(loss)
 
-    def calc_reference_loss(self, reference, completion, points):
-        result_reference = extract_features_from_batch(completion, points, self.autoencoder)
+    def calc_reference_loss(self, reference, left_batch, right_batch):
+        result_reference = extract_features_from_eye_batches(left_batch, right_batch, self.autoencoder)
         loss = tf.nn.l2_loss(result_reference - reference)
         return tf.reduce_mean(loss)
 
