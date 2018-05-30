@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Eye-inpainting</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
+
+</head>
+<body>
+
+<form enctype="multipart/form-data" method="post" id="myform">
+    <h2>Загрузите изображение и мы откроем Вам глаза на этот мир</h2>
+    <p>
+        <input type="file" id="input_form">
+        <input type="button" value="Отправить" id="submit_button">
+    </p>
+    <div id="first_image_box">
+        <p>Исходное изображение</p>
+        <img src="" title="Input image" id="first_image">
+    </div>
+    <div id="second_image_box">
+        <p>Что получилось в итоге</p>
+        <img src="" title="Processed image" id="second_image">
+    </div>
+</form>
+</body>
+<script type="text/javascript" src="script.js"></script>
+</html>
