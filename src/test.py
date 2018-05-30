@@ -24,14 +24,14 @@ weights_path = join(PATH_WEIGHTS, 'latest')
 
 def test():
     x = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
-    ref = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
+    ref_tf = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     mask = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 1])
     local_x = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     global_completion = tf.placeholder(tf.float32, [BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, 3])
     local_completion = tf.placeholder(tf.float32, [BATCH_SIZE, LOCAL_SIZE, LOCAL_SIZE, 3])
     is_training = tf.placeholder(tf.bool, [])
 
-    model = Network(x, mask, ref, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
+    model = Network(x, mask, ref_tf, local_x, global_completion, local_completion, is_training, batch_size=BATCH_SIZE)
     sess = tf.Session()
     init_op = tf.global_variables_initializer()
     sess.run(init_op)
@@ -39,11 +39,11 @@ def test():
     saver = tf.train.Saver()
     saver.restore(sess, weights_path)
 
-    _, test_generator, _ = get_full_dataset(PATH_CELEB_ALIGN_IMAGES, 0.9)
+    test_generator, _, _ = get_full_dataset(PATH_CELEB_ALIGN_IMAGES, 0.9)
 
     cnt = 0
     for i, (X_batch, mask_batch, _, ref_batch) in tqdm.tqdm(enumerate(test_generator(BATCH_SIZE))):
-        completion = sess.run(model.completion, feed_dict={x: X_batch, mask: mask_batch, ref: ref_batch, is_training: False})
+        completion = sess.run(model.completion, feed_dict={x: X_batch, mask: mask_batch, ref_tf: ref_batch, is_training: False})
         for i in range(BATCH_SIZE):
             cnt += 1
             raw = X_batch[i]
@@ -54,8 +54,8 @@ def test():
             img = completion[i]
             img = np.array((-img + 1) * 127.5, dtype=np.uint8)
             dst = join(PATH_OUTPUT, '{}.jpg'.format("{0:06d}".format(cnt)))
-            output_image([['Input', masked], ['Reference', ref], ['Output', img], ['Ground Truth', raw]], dst)
-            
+            output_image([['Input', masked], ['Reference', ref], ['Output', img], ['GroundTruth', raw]], dst)
+
 
 def get_mask(input_images):
     # восстанавливаем из картинки её маску
@@ -70,7 +70,7 @@ def get_mask(input_images):
         mask.append(m)
     return np.array(mask)
 
-    
+
 
 def output_image(images, dst):
     fig = plt.figure()
@@ -85,8 +85,12 @@ def output_image(images, dst):
         plt.xlabel(text)
     plt.savefig(dst)
     plt.close()
+    for i, image in enumerate(images):
+       text, img = image
+       path = dst[:-4] + "_" + text + '.jpg'
+       plt.imsave(path, img, format='jpg')
+
 
 
 if __name__ == '__main__':
     test()
-    
