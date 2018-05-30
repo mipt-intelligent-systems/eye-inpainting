@@ -64,7 +64,7 @@ def train(train_size):
     sess.run(init_op)
 
     if tf.train.get_checkpoint_state('./backup'):
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(model.g_variables)
         saver.restore(sess, './backup/latest')
 
     saver = tf.train.Saver(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='autoencoder'))
@@ -113,7 +113,7 @@ def train(train_size):
         sample = np.array((-completion[0] + 1) * 127.5, dtype=np.uint8)
         cv2.imwrite('./output/{}.jpg'.format("{0:06d}".format(sess.run(epoch))), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
 
-        saver = tf.train.Saver(model.g_variables)
+        saver = tf.train.Saver()
         saver.save(sess, './backup/latest', write_meta_graph=False)
 
 
